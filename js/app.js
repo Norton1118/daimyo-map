@@ -1,6 +1,6 @@
 ﻿//// app.js — Daimyo Castles Map (Leaflet)
 //// -------------------------------------
-window.__APP_BUILD__ = "2025-10-22-09";
+window.__APP_BUILD__ = "2025-10-22-11";
 console.log("[app] build", window.__APP_BUILD__);
 
 // --- URL flags --------------------------------------------------------------
@@ -24,7 +24,7 @@ map.setView([36.2, 138.0], 5);
 function htmlEscape(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
+    .replace(/<//g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
@@ -49,10 +49,10 @@ function buildWikiFallback(props) {
 
   let t = title.replace(/\s+/g, "_");
   if (lang === "en" && !/(_Domain|_domain)$/i.test(t) && !/Domain$/i.test(title)) {
-    t = \\_Domain\;
+    t = `${t}_Domain`;
   }
   if (lang === "ja" && !/藩/.test(title)) {
-    t = \\藩\;
+    t = `${t}藩`;
   }
   return base + encodeURIComponent(t);
 }
@@ -83,7 +83,7 @@ function iconFor(p, px = 32) {
 
   return L.divIcon({
     className: cls,
-    html: \<img class="crest-img" src="\" alt="" loading="lazy" style="width:\px;height:\px;">\,
+    html: `<img class="crest-img" src="${htmlEscape(src)}" alt="" loading="lazy" style="width:${size}px;height:${size}px;">`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2],
@@ -98,33 +98,33 @@ function sizeForZoom(z) {
 
 function popupHtml(p) {
   const title = p.Wikipedia_Title || p.Han_Name || p.Name || "Domain";
-  const fam = p.Daimyo_Family ? \\ 家\ : "";
+  const fam = p.Daimyo_Family ? `${htmlEscape(p.Daimyo_Family)} 家` : "";
   const kokuVal = p.Stipend_Koku ?? p.Stipend_koku ?? p["Stipend Koku"] ?? null;
-  const koku = kokuVal != null ? \・ 俸禄: \ 石\ : "";
+  const koku = kokuVal != null ? `・ 俸禄: ${htmlEscape(kokuVal)} 石` : "";
   const town = p.Castle_Town ? htmlEscape(p.Castle_Town) : "";
   const wiki = effectiveWikiUrl(p);
   const link = wiki
-    ? \<div class="popup-links"><a data-wiki href="\" target="_blank" rel="noopener">Wikipedia</a></div>\
+    ? `<div class="popup-links"><a data-wiki href="${htmlEscape(wiki)}" target="_blank" rel="noopener">Wikipedia</a></div>`
     : "";
 
-  return \
+  return `
     <div class="popup">
-      <h3>\</h3>
-      <div class="popup-sub">\\</div>
-      <div>\</div>
-      \
+      <h3>${htmlEscape(title)}</h3>
+      <div class="popup-sub">${fam}${koku}</div>
+      <div>${town}</div>
+      ${link}
     </div>
-  \;
+  `;
 }
 
 // --- Data + Markers ---------------------------------------------------------
 (async function () {
-  const geojsonUrl = \data/daimyo_castles.geojson?cb=\\;
+  const geojsonUrl = `data/daimyo_castles.geojson?cb=${Date.now()}`;
 
   let gj;
   try {
     const resp = await fetch(geojsonUrl);
-    if (!resp.ok) throw new Error(\GeoJSON fetch failed: \ \\);
+    if (!resp.ok) throw new Error(`GeoJSON fetch failed: ${resp.status} ${resp.statusText}`);
     gj = await resp.json();
   } catch (err) {
     console.error(err);
