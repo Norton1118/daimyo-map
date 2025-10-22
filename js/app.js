@@ -22,11 +22,12 @@ map.setView([36.2, 138.0], 5);
 
 // --- Helpers ----------------------------------------------------------------
 function htmlEscape(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/<//g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  s = String(s ?? "");
+  s = s.split("&").join("&amp;");
+  s = s.split("<").join("&lt;");
+  s = s.split(">").join("&gt;");
+  s = s.split("\"").join("&quot;");
+  return s;
 }
 
 // Render-time URL overrides (belt & suspenders)
@@ -179,3 +180,4 @@ function popupHtml(p) {
     window.__layer = layer;
   }
 })();
+
