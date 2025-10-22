@@ -1,6 +1,6 @@
 ﻿//// app.js — Daimyo Castles Map (Leaflet)
 //// -------------------------------------
-window.__APP_BUILD__ = "2025-10-22-11";
+window.__APP_BUILD__ = "2025-10-22-13";
 console.log("[app] build", window.__APP_BUILD__);
 
 // --- URL flags --------------------------------------------------------------
@@ -103,7 +103,7 @@ function popupHtml(p) {
   const kokuVal = p.Stipend_Koku ?? p.Stipend_koku ?? p["Stipend Koku"] ?? null;
   const koku = kokuVal != null ? `・ 俸禄: ${htmlEscape(kokuVal)} 石` : "";
   const town = p.Castle_Town ? htmlEscape(p.Castle_Town) : "";
-  const wiki = effectiveWikiUrl(p);
+  const wiki = normalizeWikiUrl(effectiveWikiUrl(p), p);
   const link = wiki
     ? `<div class="popup-links"><a data-wiki href="${htmlEscape(wiki)}" target="_blank" rel="noopener">Wikipedia</a></div>`
     : "";
@@ -180,4 +180,28 @@ function popupHtml(p) {
     window.__layer = layer;
   }
 })();
+
+
+function normalizeWikiUrl(u, props) {
+  try {
+    if (!u) return "";
+    const m = u.match(/^https?:\/\/([^\/]+)\/wiki\/([^?#]+)/i);
+    if (!m) return u;
+
+    const host = m[1].toLowerCase();
+    let page = decodeURIComponent(m[2]);
+
+    // English Wikipedia uses "Domain", not "Han"
+    if (host.startsWith("en.wikipedia.org")) {
+      page = page.replace(/_Han$/i, "_Domain");
+    }
+
+    // Common misspelling safeguard
+    page = page.replace(/^Itogawa/i, "Itoigawa");
+
+    return `https://${host}/wiki/${encodeURIComponent(page)}`;
+  } catch (_e) {
+    return u;
+  }
+}
 
