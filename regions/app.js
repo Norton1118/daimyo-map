@@ -16,7 +16,7 @@ function htmlEscape(s) {
   return s;
 }
 function iconFor(p, px = 32) {
-  const src = p.Mon_Local ? p.Mon_Local : "../imgs/fallback.png"; // note ../
+  const src = p.Mon_Local ? ("../" + p.Mon_Local) : "../imgs/fallback.png"; // note ../
   const size = Math.round(px);
   return L.divIcon({
     className: "crest-icon",
@@ -43,13 +43,37 @@ function buildWikiFallback(props) {
   return base + encodeURIComponent(t);
 }
 function effectiveWikiUrl(props) {
-  const key = (props.Han_Name || props.Name || "").toLowerCase();
-  if (URL_OVERRIDES[key]) return URL_OVERRIDES[key];
-  const u = props.Wikipedia_URL;
-  if (typeof u === "string" && /^https?:\/\//i.test(u)) return u.trim();
+  // 1) Start from audited URL if present
+  let u = props.Wikipedia_URL;
+  if (typeof u === "string") u = u.trim();
+
+  // 2) Normalizer (handles English “_Han” tails etc.)
+  const normalize = (url) => {
+    if (!url) return "";
+    try {
+      const a = new URL(url);
+      // Always https
+      a.protocol = "https:";
+      // English wiki: make sure we land on “…_Domain”
+      if (/^en\.wikipedia\.org$/i.test(a.hostname)) {
+        // If the path ends in “…_Han” (or “Han” right after /wiki/)
+        a.pathname = a.pathname.replace(/\/wiki\/([^?#]+?)(?:_Han|%5FHan)(?=$|[?#])/i, "/wiki/$1_Domain");
+      }
+      return a.toString();
+    } catch {
+      return url; // if URL ctor fails, return as-is
+    }
+  };
+
+  // 3) If audited URL exists, use it (after normalization)
+  if (u && /^https?:\/\//i.test(u)) return normalize(u);
+
+  // 4) Try legacy fields if they are already full URLs
   const legacy = props.Wikipedia_Link || props.Wikipedia || props["Wikipedia link"] || props["Wikipedia_Link"] || "";
-  if (legacy && /^https?:\/\//i.test(legacy)) return legacy.trim();
-  return buildWikiFallback(props);
+  if (legacy && /^https?:\/\//i.test(legacy)) return normalize(legacy);
+
+  // 5) Fall back to building from the title (as on main map)
+  return normalize(buildWikiFallback(props));
 }
 function popupHtml(p) {
   const title = p.Wikipedia_Title || p.Han_Name || p.Name || "Domain";
@@ -150,3 +174,4 @@ function buildControlsUI() {
     REGION_ORDER.forEach((name, i) => { document.getElementById(`r_${i}`).checked = false; map.removeLayer(regionGroups[name]); });
   };
 }
+
