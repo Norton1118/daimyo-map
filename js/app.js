@@ -1,6 +1,6 @@
 ﻿//// app.js — Daimyo Castles Map (Leaflet)
 //// -------------------------------------
-window.__APP_BUILD__ = "2025-10-22-07";
+window.__APP_BUILD__ = "2025-10-22-09";
 console.log("[app] build", window.__APP_BUILD__);
 
 // --- URL flags --------------------------------------------------------------
@@ -17,7 +17,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }).addTo(map);
 
-// A gentle default view over Japan; we’ll fit to data after load.
+// Default view; we’ll fit to data after load.
 map.setView([36.2, 138.0], 5);
 
 // --- Helpers ----------------------------------------------------------------
@@ -43,17 +43,16 @@ function buildWikiFallback(props) {
   if (!title) return "";
 
   const lang = (props.Wikipedia_Lang || "en").toLowerCase();
-  const base =
-    lang === "ja"
-      ? "https://ja.wikipedia.org/wiki/"
-      : "https://en.wikipedia.org/wiki/";
+  const base = lang === "ja"
+    ? "https://ja.wikipedia.org/wiki/"
+    : "https://en.wikipedia.org/wiki/";
 
   let t = title.replace(/\s+/g, "_");
   if (lang === "en" && !/(_Domain|_domain)$/i.test(t) && !/Domain$/i.test(title)) {
-    t = ${t}_Domain;
+    t = \\_Domain\;
   }
   if (lang === "ja" && !/藩/.test(title)) {
-    t = ${t}藩;
+    t = \\藩\;
   }
   return base + encodeURIComponent(t);
 }
@@ -70,8 +69,7 @@ function effectiveWikiUrl(props) {
     props.Wikipedia_Link ||
     props.Wikipedia ||
     props["Wikipedia link"] ||
-    props["Wikipedia_Link"] ||
-    "";
+    props["Wikipedia_Link"] || "";
   if (legacy && /^https?:\/\//i.test(legacy)) return legacy.trim();
 
   return buildWikiFallback(props);
@@ -85,14 +83,14 @@ function iconFor(p, px = 32) {
 
   return L.divIcon({
     className: cls,
-    html: <img class="crest-img" src="" alt="" loading="lazy" style="width:px;height:px;">,
+    html: \<img class="crest-img" src="\" alt="" loading="lazy" style="width:\px;height:\px;">\,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2],
   });
 }
 
-// Smooth-ish size curve: clamp between 20–44 px across zoom 4–12
+// Smooth-ish size curve: clamp 20–44 px across zoom 4–12
 function sizeForZoom(z) {
   const px = 20 + (z - 4) * 3;
   return Math.max(20, Math.min(44, px));
@@ -100,32 +98,28 @@ function sizeForZoom(z) {
 
 function popupHtml(p) {
   const title = p.Wikipedia_Title || p.Han_Name || p.Name || "Domain";
-
-  const fam = p.Daimyo_Family ? ${htmlEscape(p.Daimyo_Family)} 家 : "";
-  const kokuVal =
-    p.Stipend_Koku ?? p.Stipend_koku ?? p["Stipend Koku"] ?? null;
-  const koku = kokuVal != null ? ・ 俸禄:  石 : "";
-
+  const fam = p.Daimyo_Family ? \\ 家\ : "";
+  const kokuVal = p.Stipend_Koku ?? p.Stipend_koku ?? p["Stipend Koku"] ?? null;
+  const koku = kokuVal != null ? \・ 俸禄: \ 石\ : "";
   const town = p.Castle_Town ? htmlEscape(p.Castle_Town) : "";
   const wiki = effectiveWikiUrl(p);
-
   const link = wiki
-    ? <div class="popup-links"><a data-wiki href="" target="_blank" rel="noopener">Wikipedia</a></div>
+    ? \<div class="popup-links"><a data-wiki href="\" target="_blank" rel="noopener">Wikipedia</a></div>\
     : "";
 
-  return 
+  return \
     <div class="popup">
-      <h3></h3>
-      <div class="popup-sub"></div>
-      <div></div>
-      
+      <h3>\</h3>
+      <div class="popup-sub">\\</div>
+      <div>\</div>
+      \
     </div>
-  ;
+  \;
 }
 
 // --- Data + Markers ---------------------------------------------------------
 (async function () {
-  const geojsonUrl = data/daimyo_castles.geojson?cb=;
+  const geojsonUrl = \data/daimyo_castles.geojson?cb=\\;
 
   let gj;
   try {
