@@ -107,6 +107,21 @@ const REGION_DEFS = {
   "Kyūshū":      [129.0, 31.0, 132.3, 33.9],
 };
 const REGION_ORDER = Object.keys(REGION_DEFS);
+
+// Name-based overrides run before boxes
+// Each entry: { test: /regex/i, region: "Kinki" }
+if (typeof REGION_NAME_OVERRIDES === "undefined") {
+  var REGION_NAME_OVERRIDES = [];
+}
+
+function resolveRegionForFeature(props, lng, lat) {
+  const name = (props.Han_Name || props.Name || "").toLowerCase();
+  for (const rule of REGION_NAME_OVERRIDES) {
+    try { if (rule.test.test(name)) return rule.region; } catch (e) {}
+  }
+  return whichRegion(lng, lat) || "Kantō";
+}
+const REGION_ORDER = Object.keys(REGION_DEFS);
 function pointInBox(lng, lat, [w,s,e,n]) { return lng>=w && lng<=e && lat>=s && lat<=n; }
 function whichRegion(lng, lat) {
   for (const name of REGION_ORDER) if (pointInBox(lng, lat, REGION_DEFS[name])) return name;
@@ -136,7 +151,7 @@ for (const r of REGION_ORDER) regionGroups[r] = L.layerGroup().addTo(map);
     const p = f.properties || {};
     const m = L.marker([lat, lng], { icon: iconFor(p, size) }).bindPopup(popupHtml(p));
     m.__props = p;
-    m.__region = whichRegion(lng, lat) || "Kantō";
+    m.__region = resolveRegionForFeature(p, lng, lat);
     allMarkers.push(m);
     regionGroups[m.__region].addLayer(m);
   });
@@ -176,6 +191,8 @@ function buildControlsUI() {
     REGION_ORDER.forEach((name, i) => { document.getElementById(`r_${i}`).checked = false; map.removeLayer(regionGroups[name]); });
   };
 }
+
+
 
 
 
