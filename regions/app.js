@@ -27,6 +27,8 @@ function iconFor(p, px = 32) {
 
 // Wikipedia URL (same behavior as main map, short form)
 const URL_OVERRIDES = {
+  "kokura shinden": "https://ja.wikipedia.org/wiki/%E5%B0%8F%E5%80%89%E6%96%B0%E7%94%B0%E8%97%A9",
+  "小倉新田": "https://ja.wikipedia.org/wiki/%E5%B0%8F%E5%80%89%E6%96%B0%E7%94%B0%E8%97%A9",
   "itoigawa": "https://en.wikipedia.org/wiki/Itoigawa_Domain",
   "itoigawa han": "https://en.wikipedia.org/wiki/Itoigawa_Domain",
   "itogawa": "https://en.wikipedia.org/wiki/Itoigawa_Domain",
@@ -174,5 +176,7 @@ function buildControlsUI() {
     REGION_ORDER.forEach((name, i) => { document.getElementById(`r_${i}`).checked = false; map.removeLayer(regionGroups[name]); });
   };
 }
+
+
 
 
