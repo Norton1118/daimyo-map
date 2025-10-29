@@ -1,5 +1,5 @@
 ﻿/* Regions variant — no clustering + region filter */
-window.__APP_BUILD__ = "regions-2025-10-22-04"; console.log("[regions] build", window.__APP_BUILD__);
+window.__APP_BUILD__ = "regions-2025-10-22-05"; console.log("[regions] build", window.__APP_BUILD__);
 
 // Map ------------------------------------------------
 const map = L.map("map", { zoomControl: true, preferCanvas: true });
@@ -108,16 +108,13 @@ const REGION_DEFS = {
 };
 const REGION_ORDER = Object.keys(REGION_DEFS);
 
-
-var REGION_NAME_OVERRIDES = [
-  { test: /(ryūkyū|ryukyu|琉球|okinawa|沖縄)/i, region: "Kyūshū" },
-  { test: /(tsushima|対馬)/i,                    region: "Kyūshū" },
-  { test: /(fukue|福江|五島|goto)/i,             region: "Kyūshū" },
-];
-// Name-based overrides run before boxes
+// ---- SINGLE SOURCE OF TRUTH (no duplicates) -----------------------------
+// Keep it on window so reloading or other scripts can share without errors.
+window.REGION_NAME_OVERRIDES = window.REGION_NAME_OVERRIDES || [];
+var REGION_NAME_OVERRIDES = window.REGION_NAME_OVERRIDES;
+// ------------------------------------------------------------------------// Name-based overrides run before boxes
 // Each entry: { test: /regex/i, region: "Kinki" }
 if (typeof REGION_NAME_OVERRIDES === "undefined") {
-  var REGION_NAME_OVERRIDES = [];
 }
 
 function resolveRegionForFeature(props, lng, lat) {
@@ -129,12 +126,11 @@ function resolveRegionForFeature(props, lng, lat) {
 }
 const REGION_ORDER = Object.keys(REGION_DEFS);
 
-var REGION_NAME_OVERRIDES = [
-  { test: /(ryūkyū|ryukyu|琉球|okinawa|沖縄)/i, region: "Kyūshū" },
-  { test: /(tsushima|対馬)/i,                    region: "Kyūshū" },
-  { test: /(fukue|福江|五島|goto)/i,             region: "Kyūshū" },
-];
-function pointInBox(lng, lat, [w,s,e,n]) { return lng>=w && lng<=e && lat>=s && lat<=n; }
+// ---- SINGLE SOURCE OF TRUTH (no duplicates) -----------------------------
+// Keep it on window so reloading or other scripts can share without errors.
+window.REGION_NAME_OVERRIDES = window.REGION_NAME_OVERRIDES || [];
+var REGION_NAME_OVERRIDES = window.REGION_NAME_OVERRIDES;
+// ------------------------------------------------------------------------function pointInBox(lng, lat, [w,s,e,n]) { return lng>=w && lng<=e && lat>=s && lat<=n; }
 function whichRegion(lng, lat) {
   for (const name of REGION_ORDER) if (pointInBox(lng, lat, REGION_DEFS[name])) return name;
   return null;
@@ -203,6 +199,8 @@ function buildControlsUI() {
     REGION_ORDER.forEach((name, i) => { document.getElementById(`r_${i}`).checked = false; map.removeLayer(regionGroups[name]); });
   };
 }
+
+
 
 
 
