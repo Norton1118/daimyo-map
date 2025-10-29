@@ -1,5 +1,5 @@
 ﻿/* Regions variant — no clustering + region filter */
-window.__APP_BUILD__ = "regions-2025-10-22-02"; console.log("[regions] build", window.__APP_BUILD__);
+window.__APP_BUILD__ = "regions-2025-10-22-03"; console.log("[regions] build", window.__APP_BUILD__);
 
 // Map ------------------------------------------------
 const map = L.map("map", { zoomControl: true, preferCanvas: true });
@@ -98,16 +98,22 @@ function popupHtml(p) {
 // [westLng, southLat, eastLng, northLat]
 const REGION_DEFS = {
   "Ezo–Tohoku":  [138.0, 36.8, 146.6, 46.6],
-  "Kantō":       [138.0, 35.0, 141.6, 37.9],
-  "Kōshin’etsu": [137.0, 35.2, 139.9, 38.9],
-  "Tōkai":       [136.0, 34.2, 139.2, 36.9],
-  "Kinki":       [134.0, 33.8, 136.9, 35.9],
-  "Chūgoku":     [130.0, 33.8, 134.9, 35.9],
-  "Shikoku":     [132.0, 32.7, 134.9, 34.5],
-  "Kyūshū":      [129.0, 31.0, 132.3, 33.9],
+  "Kantō":       [138.3, 34.5, 141.6, 37.9],
+  "Kōshin’etsu": [137.0, 35.0, 140.2, 38.9],
+  "Tōkai":       [136.0, 33.5, 139.4, 36.9],
+  "Kinki":       [133.0, 33.2, 137.9, 36.3],
+  "Chūgoku":     [130.0, 33.3, 135.2, 36.3],
+  "Shikoku":     [132.0, 32.5, 135.1, 34.6],
+  "Kyūshū":      [127.0, 24.0, 132.6, 35.3]   // includes Tsushima, Gotō, Okinawa
 };
 const REGION_ORDER = Object.keys(REGION_DEFS);
 
+
+const REGION_NAME_OVERRIDES = [
+  { test: /(ryūkyū|ryukyu|琉球|okinawa|沖縄)/i, region: "Kyūshū" },
+  { test: /(tsushima|対馬)/i,                    region: "Kyūshū" },
+  { test: /(fukue|福江|五島|goto)/i,             region: "Kyūshū" },
+];
 // Name-based overrides run before boxes
 // Each entry: { test: /regex/i, region: "Kinki" }
 if (typeof REGION_NAME_OVERRIDES === "undefined") {
@@ -122,6 +128,12 @@ function resolveRegionForFeature(props, lng, lat) {
   return whichRegion(lng, lat) || "Kantō";
 }
 const REGION_ORDER = Object.keys(REGION_DEFS);
+
+const REGION_NAME_OVERRIDES = [
+  { test: /(ryūkyū|ryukyu|琉球|okinawa|沖縄)/i, region: "Kyūshū" },
+  { test: /(tsushima|対馬)/i,                    region: "Kyūshū" },
+  { test: /(fukue|福江|五島|goto)/i,             region: "Kyūshū" },
+];
 function pointInBox(lng, lat, [w,s,e,n]) { return lng>=w && lng<=e && lat>=s && lat<=n; }
 function whichRegion(lng, lat) {
   for (const name of REGION_ORDER) if (pointInBox(lng, lat, REGION_DEFS[name])) return name;
@@ -191,6 +203,11 @@ function buildControlsUI() {
     REGION_ORDER.forEach((name, i) => { document.getElementById(`r_${i}`).checked = false; map.removeLayer(regionGroups[name]); });
   };
 }
+
+
+
+
+
 
 
 
