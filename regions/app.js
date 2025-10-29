@@ -1,5 +1,5 @@
 ﻿/* Regions variant — no clustering + region filter */
-window.__APP_BUILD__ = "regions-2025-10-22-07"; console.log("[regions] build", window.__APP_BUILD__);
+window.__APP_BUILD__ = "regions-2025-10-22-08"; console.log("[regions] build", window.__APP_BUILD__);
 
 // Map ------------------------------------------------
 const map = L.map("map", { zoomControl: true, preferCanvas: true });
@@ -225,6 +225,7 @@ function buildControlsUI() {
     REGION_ORDER.forEach((name, i) => { document.getElementById(`r_${i}`).checked = false; map.removeLayer(regionGroups[name]); });
   };
 }
+
 
 
 
