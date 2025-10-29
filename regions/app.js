@@ -1,7 +1,7 @@
 ﻿/* Regions variant — no clustering + region filter
    daimyo-map/regions/app.js
 */
-window.__APP_BUILD__ = "regions-2025-10-22-14";
+window.__APP_BUILD__ = "regions-2025-10-22-15";
 
 // ------------------------ Map ------------------------
 const map = L.map("map", { zoomControl: true, preferCanvas: true });
@@ -261,4 +261,71 @@ function buildControlsUI() {
   };
 }
 
+
+/* ---------- Regions UI wiring (idempotent) ---------- */
+(function(){
+  if (typeof window.__REGIONS_UI_WIRED__ !== "undefined") return;
+  window.__REGIONS_UI_WIRED__ = true;
+
+  // Ensure region boxes & order exist
+  if (typeof REGION_DEFS === "undefined") {
+    window.REGION_DEFS = {
+      "Ezo–Tohoku":[138.0,36.8,146.6,46.6],
+      "Kantō":[138.3,34.5,141.6,37.9],
+      "Kōshin’etsu":[137.0,35.0,140.2,38.9],
+      "Tōkai":[136.0,33.5,139.4,36.9],
+      "Kinki":[133.0,33.2,137.9,36.3],
+      "Chūgoku":[130.0,33.3,135.2,36.3],
+      "Shikoku":[132.0,32.5,135.1,34.6],
+      "Kyūshū":[127.0,24.0,132.6,35.3]
+    };
+  }
+  if (typeof REGION_ORDER === "undefined") {
+    window.REGION_ORDER = Object.keys(REGION_DEFS);
+  }
+
+  // Ensure regionGroups exists and is on the map
+  if (typeof window.regionGroups === "undefined") window.regionGroups = {};
+  REGION_ORDER.forEach(function(r){
+    if (!regionGroups[r]) { regionGroups[r] = L.layerGroup().addTo(map); }
+  });
+
+  // UI builder
+  window.buildControlsUI = function(){
+    var rows = document.getElementById("region-rows");
+    if (!rows) return;                       // index.html must contain <div id="region-rows">
+    rows.innerHTML = "";
+    REGION_ORDER.forEach(function(name, i){
+      var id = "r_"+i;
+      var lab = document.createElement("label");
+      lab.innerHTML = '<input type="checkbox" id="'+id+'" checked> '+name;
+      rows.appendChild(lab);
+      var cb = lab.querySelector("input");
+      cb.addEventListener("change", function(){
+        if (cb.checked) { regionGroups[name].addTo(map); }
+        else { map.removeLayer(regionGroups[name]); }
+      });
+    });
+
+    var showBtn = document.getElementById("btn-show-all");
+    var hideBtn = document.getElementById("btn-hide-all");
+    if (showBtn) showBtn.onclick = function(){
+      REGION_ORDER.forEach(function(name, i){
+        var cb = document.getElementById("r_"+i); if (cb) cb.checked = true;
+        regionGroups[name].addTo(map);
+      });
+    };
+    if (hideBtn) hideBtn.onclick = function(){
+      REGION_ORDER.forEach(function(name, i){
+        var cb = document.getElementById("r_"+i); if (cb) cb.checked = false;
+        map.removeLayer(regionGroups[name]);
+      });
+    };
+  };
+
+  // Call it once markers likely exist; call again on next tick just in case.
+  if (document.readyState !== "loading") { try { buildControlsUI(); } catch(e){} }
+  document.addEventListener("DOMContentLoaded", function(){ try { buildControlsUI(); } catch(e){} });
+  setTimeout(function(){ try { buildControlsUI(); } catch(e){} }, 0);
+})();
 
