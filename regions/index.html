@@ -5,7 +5,6 @@
   <title>Daimyo Map — Regions (no clustering)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Leaflet (no markercluster here) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     html, body, #map { height: 100%; margin: 0; }
@@ -20,18 +19,14 @@
     .controls .row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px 10px; }
     .controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
     .controls .buttons { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
-    .controls button {
-      padding: 6px 10px; border: 1px solid #0002; border-radius: 8px; background: #f7f7f9; cursor: pointer;
-    }
+    .controls button { padding: 6px 10px; border: 1px solid #0002; border-radius: 8px; background: #f7f7f9; cursor: pointer; }
     .controls button:hover { background: #f0f0f5; }
 
-    /* crest icons (same look as main map) */
     .crest-icon { border-radius: 6px; }
     .crest-icon .crest-img {
       width: 40px; height: 40px; object-fit: contain;
       background: #fff; border: 1px solid #0003; border-radius: 6px; display: block;
     }
-
     .leaflet-popup-content { margin: 8px 12px; }
     .popup h3 { margin: 0 0 4px; font-size: 16px; }
     .popup-sub { color: #444; font-size: 13px; margin-bottom: 6px; }
@@ -53,15 +48,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=2025-10-22-12" defer></script>
+  <script src="app.js?v=2025-10-22-14" defer></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

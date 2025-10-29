@@ -1,7 +1,7 @@
 ﻿/* Regions variant — no clustering + region filter
    daimyo-map/regions/app.js
 */
-window.__APP_BUILD__ = "regions-2025-10-22-12";
+window.__APP_BUILD__ = "regions-2025-10-22-14";
 
 // ------------------------ Map ------------------------
 const map = L.map("map", { zoomControl: true, preferCanvas: true });
@@ -260,4 +260,5 @@ function buildControlsUI() {
     REGION_ORDER.forEach((name) => map.removeLayer(regionGroups[name]));
   };
 }
+
 
