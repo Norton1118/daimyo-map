@@ -1,5 +1,5 @@
 ﻿/* Regions variant — no clustering + region filter */
-window.__APP_BUILD__ = "regions-2025-10-22-05"; console.log("[regions] build", window.__APP_BUILD__);
+window.__APP_BUILD__ = "regions-2025-10-22-06"; console.log("[regions] build", window.__APP_BUILD__);
 
 // Map ------------------------------------------------
 const map = L.map("map", { zoomControl: true, preferCanvas: true });
@@ -108,6 +108,19 @@ const REGION_DEFS = {
 };
 const REGION_ORDER = Object.keys(REGION_DEFS);
 
+// Guarded global — avoids “already declared” across reloads/edits
+window.REGION_NAME_OVERRIDES = window.REGION_NAME_OVERRIDES || [];
+var REGION_NAME_OVERRIDES = window.REGION_NAME_OVERRIDES;
+
+function resolveRegionForFeature(props, lng, lat) {
+  const name = (props.Han_Name || props.Name || "").toLowerCase();
+  for (const rule of REGION_NAME_OVERRIDES) {
+    try { if (rule.test.test(name)) return rule.region; } catch {}
+  }
+  return whichRegion(lng, lat) || "Kantō";
+}
+
+
 // ---- SINGLE SOURCE OF TRUTH (no duplicates) -----------------------------
 // Keep it on window so reloading or other scripts can share without errors.
 window.REGION_NAME_OVERRIDES = window.REGION_NAME_OVERRIDES || [];
@@ -124,7 +137,7 @@ function resolveRegionForFeature(props, lng, lat) {
   }
   return whichRegion(lng, lat) || "Kantō";
 }
-const REGION_ORDER = Object.keys(REGION_DEFS);
+
 
 // ---- SINGLE SOURCE OF TRUTH (no duplicates) -----------------------------
 // Keep it on window so reloading or other scripts can share without errors.
@@ -199,6 +212,7 @@ function buildControlsUI() {
     REGION_ORDER.forEach((name, i) => { document.getElementById(`r_${i}`).checked = false; map.removeLayer(regionGroups[name]); });
   };
 }
+
 
 
 
