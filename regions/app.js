@@ -1,5 +1,5 @@
 ﻿/* Regions variant — no clustering + region filter */
-window.__APP_BUILD__ = "regions-2025-10-22-03"; console.log("[regions] build", window.__APP_BUILD__);
+window.__APP_BUILD__ = "regions-2025-10-22-04"; console.log("[regions] build", window.__APP_BUILD__);
 
 // Map ------------------------------------------------
 const map = L.map("map", { zoomControl: true, preferCanvas: true });
@@ -109,7 +109,7 @@ const REGION_DEFS = {
 const REGION_ORDER = Object.keys(REGION_DEFS);
 
 
-const REGION_NAME_OVERRIDES = [
+var REGION_NAME_OVERRIDES = [
   { test: /(ryūkyū|ryukyu|琉球|okinawa|沖縄)/i, region: "Kyūshū" },
   { test: /(tsushima|対馬)/i,                    region: "Kyūshū" },
   { test: /(fukue|福江|五島|goto)/i,             region: "Kyūshū" },
@@ -129,7 +129,7 @@ function resolveRegionForFeature(props, lng, lat) {
 }
 const REGION_ORDER = Object.keys(REGION_DEFS);
 
-const REGION_NAME_OVERRIDES = [
+var REGION_NAME_OVERRIDES = [
   { test: /(ryūkyū|ryukyu|琉球|okinawa|沖縄)/i, region: "Kyūshū" },
   { test: /(tsushima|対馬)/i,                    region: "Kyūshū" },
   { test: /(fukue|福江|五島|goto)/i,             region: "Kyūshū" },
@@ -203,6 +203,8 @@ function buildControlsUI() {
     REGION_ORDER.forEach((name, i) => { document.getElementById(`r_${i}`).checked = false; map.removeLayer(regionGroups[name]); });
   };
 }
+
+
 
 
 
