@@ -2,59 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Daimyo Castles Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Daimyo Map</title>
 
-  <!-- Leaflet + MarkerCluster -->
+  <!-- Leaflet + MarkerCluster styles -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 
   <style>
-    html, body, #map { height: 100%; margin: 0; }
-
-    /* mon icon styling */
-    .crest-icon { border-radius: 6px; }
-    .crest-icon .crest-img {
-      width: 40px; height: 40px;
-      object-fit: contain;
-      background: #fff;
-      border: 1px solid #0003;
-      border-radius: 6px;
-      display: block;
-    }
-
-    .leaflet-popup-content { margin: 8px 12px; }
-    .popup h3 { margin: 0 0 4px; font-size: 16px; }
-    .popup-sub { color: #444; font-size: 13px; margin-bottom: 6px; }
-    .popup-links a { color: #1d70b8; text-decoration: none; }
-    .popup-links a:hover { text-decoration: underline; }
-
-    /* Hard-hide any leftover controls from old code/files */
-    .leaflet-control-layers,
-    .legend { display: none !important; }
+    html,body,#map { height: 100%; margin: 0; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- Leaflet + MarkerCluster -->
+  <!-- Leaflet libs -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-  <!-- Your app -->
-  <script src="js/app.js?v=2025-10-22-13" defer></script>
+  <!-- YOUR app code -->
+  <script src="js/app.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
