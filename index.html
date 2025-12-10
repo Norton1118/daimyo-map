@@ -4,22 +4,28 @@
   <meta charset="utf-8" />
   <title>Daimyo Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
-  <link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" rel="stylesheet">
-  <link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" rel="stylesheet">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
   <style>
     html, body, #map { height: 100%; margin: 0; }
-    .leaflet-popup-content { margin: 10px 12px; }
-    .btn-min {
-      font: 12px/1.2 system-ui, sans-serif; padding: 2px 8px; border: 1px solid #ddd; border-radius: 4px; background:#f6f6f6; cursor:pointer;
-    }
+    .popup { min-width: 260px; }
+    .popup-title { display: flex; align-items: center; gap: .5rem; font-weight: 700; }
+    .popup-mon { width: 28px; height: 28px; object-fit: contain; border-radius: 4px; }
+    .leaflet-popup-content { margin: 10px 14px; }
+    .leaflet-control-zoom a { font-size: 18px; }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=mk-2"></script>
 </body>
 </html>

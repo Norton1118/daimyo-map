@@ -1,139 +1,152 @@
-﻿/* js/app-region.js — unified popups + region checkbox filter */
+﻿/* js/app-region.js — map with region filters (mk-2) */
 (function () {
   // ---------- CONFIG ----------
-  const GEOJSON_URL = 'data/daimyo_domains.geojson?v=2025-12-10c';
-  const START = { lat: 36.5, lon: 138.5, zoom: 5 };
+  const VERSION     = 'mk-2';
+  const GEOJSON_URL = `data/daimyo_domains.geojson?v=${VERSION}`;
+  const ICON_BASE   = 'img/mon/';
+  const ICON_SIZE   = 44;
 
-  const map = L.map('map', { zoomControl: true }).setView([START.lat, START.lon], START.zoom);
+  // Expected region names in the GeoJSON `properties.region` field:
+  const REGION_ORDER = [
+    'Ezo-Tohoku',
+    'Kantō',
+    'Kōshin’etsu',
+    'Tōkai',
+    'Kinki',
+    'Chūgoku',
+    'Shikoku',
+    'Kyūshū'
+  ];
+
+  // ---------- MAP ----------
+  const map = L.map('map', {
+    minZoom: 4,
+    maxZoom: 19,
+    zoomSnap: 0.25,
+    zoomDelta: 0.5
+  }).setView([36.4, 138.0], 6);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors'
   }).addTo(map);
 
-  // ---------- Helpers (same as app.js) ----------
-  function formatStipend(v) {
-    if (v == null || String(v).trim() === '') return '';
-    const s = String(v).trim();
-    if (/\b(koku|Man)/i.test(s)) return s;
-    return `${s} (Man-koku)`;
-  }
-  function popupHTML(p) {
-    const parts = [];
-    if (p.prefecture) parts.push(p.prefecture);
-    if (p.daimyo) parts.push(`Daimyo: ${p.daimyo}`);
-    const stipend = formatStipend(p['stipend'] ?? p['stipend (Man Koku)']);
-    if (stipend) parts.push(`Stipend: ${stipend}`);
-    if (p.notes) parts.push(p.notes); // ← include column F
-    if (p.wikipedia_url) parts.push(`<a href="${p.wikipedia_url}" target="_blank" rel="noopener">Wikipedia</a>`);
+  // A LayerGroup per region to toggle on/off
+  const regionGroups = new Map();
+  REGION_ORDER.forEach(r => regionGroups.set(r, L.layerGroup().addTo(map)));
 
-    const titleIcon = p.icon ? `<img src="icons/${p.icon}" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;border-radius:3px;border:1px solid #333;background:#fff;">` : '';
-    const title = `<div style="font-weight:600;font-size:14px;margin-bottom:6px;">${titleIcon}${p.name || p.han || ''}</div>`;
-    return `${title}<div style="line-height:1.25">${parts.join('<br>')}</div>`;
+  // ---------- HELPERS ----------
+  function getNotes(p) {
+    const candidates = [
+      'notes',
+      'Shogunate Land, Branch Han, Notes',
+      'shogunate',
+      'shogunate_notes',
+      'description'
+    ];
+    for (const k of candidates) {
+      const v = p && p[k];
+      if (v != null && String(v).trim() !== '') return String(v).trim();
+    }
+    return '';
   }
+
+  function popupHTML(p) {
+    const title =
+      (p.han && p.han.trim()) ||
+      (p.name && p.name.trim()) ||
+      p.country ||
+      'Han';
+
+    const lines = [];
+    if (p.prefecture) lines.push(p.prefecture);
+    if (p.daimyo)     lines.push(`Daimyo: ${p.daimyo}`);
+    if (p.stipend)    lines.push(`Stipend: ${p.stipend} (Man-koku)`);
+
+    const notes = getNotes(p);
+    if (notes)       lines.push(notes);
+
+    const wikiHtml = p.wikipedia_url
+      ? `<a href="${p.wikipedia_url}" target="_blank" rel="noopener">Wikipedia</a>`
+      : (p.wikipedia ? L.Util.escapeHTML(p.wikipedia) : '');
+
+    return [
+      `<div class="popup">`,
+      `  <div class="popup-title">`,
+      p.icon ? `<img class="popup-mon" src="${ICON_BASE}${p.icon}" alt="" />` : '',
+      `    <span>${L.Util.escapeHTML(title)}</span>`,
+      `  </div>`,
+      ...lines.map(t => `  <div>${L.Util.escapeHTML(t)}</div>`),
+      wikiHtml ? `  <div>${wikiHtml}</div>` : '',
+      `</div>`
+    ].join('\n');
+  }
+
   function monIcon(p) {
+    const url = p.icon ? `${ICON_BASE}${p.icon}` : null;
     return L.icon({
-      iconUrl: `icons/${p.icon}`,
-      iconSize: [36, 36],
-      iconAnchor: [18, 18],
-      popupAnchor: [0, -10],
-      className: 'mon-icon'
+      iconUrl: url || undefined,
+      iconSize: [ICON_SIZE, ICON_SIZE],
+      iconAnchor: [ICON_SIZE/2, ICON_SIZE/2],
+      popupAnchor: [0, -ICON_SIZE/2],
+      className: url ? '' : 'blank-icon'
     });
   }
 
-  // ---------- Region layer store ----------
-  const regionLayers = new Map();   // region -> L.LayerGroup
-
-  // region UI
-  const regions = [
-    'Ezo-Tohoku', 'Kantō', 'Kōshin’etsu', 'Tōkai', 'Kinki', 'Chūgoku', 'Shikoku', 'Kyūshū'
-  ];
-  const ctl = L.control({ position: 'topleft' });
-  ctl.onAdd = function () {
-    const wrap = L.DomUtil.create('div', 'leaflet-bar');
-    wrap.style.background = '#fff';
-    wrap.style.padding = '8px';
-    wrap.style.boxShadow = '0 2px 8px rgba(0,0,0,.15)';
-    wrap.style.borderRadius = '6px';
-    wrap.innerHTML = `<div style="font-weight:600;margin-bottom:6px">Regions</div>
-      <div style="display:flex;gap:8px;margin-bottom:6px">
-        <button id="rsel" class="btn-min">Select all</button>
-        <button id="rclr" class="btn-min">Clear</button>
-      </div>
-      <div id="rlist"></div>`;
-    setTimeout(() => {
-      const list = wrap.querySelector('#rlist');
-      regions.forEach(r => {
-        const id = 'r_' + r.replace(/\W+/g, '_');
-        const row = document.createElement('div');
-        row.innerHTML = `<label style="display:flex;gap:6px;align-items:center">
-            <input type="checkbox" id="${id}"><span>${r}</span>
-          </label>`;
-        list.appendChild(row);
-        row.querySelector('input').addEventListener('change', (e) => {
-          const checked = e.target.checked;
-          const g = regionLayers.get(r);
-          if (!g) return;
-          if (checked) map.addLayer(g); else map.removeLayer(g);
-        });
-      });
-      wrap.querySelector('#rsel').onclick = () => {
-        wrap.querySelectorAll('input[type=checkbox]').forEach(cb => {
-          cb.checked = true;
-          const label = cb.nextSibling.textContent.trim();
-          const g = regionLayers.get(label);
-          if (g && !map.hasLayer(g)) map.addLayer(g);
-        });
-      };
-      wrap.querySelector('#rclr').onclick = () => {
-        wrap.querySelectorAll('input[type=checkbox]').forEach(cb => {
-          cb.checked = false;
-          const label = cb.nextSibling.textContent.trim();
-          const g = regionLayers.get(label);
-          if (g && map.hasLayer(g)) map.removeLayer(g);
-        });
-      };
-    }, 0);
-    L.DomEvent.disableClickPropagation(wrap);
-    return wrap;
-  };
-  ctl.addTo(map);
-
-  // ---------- Load data ----------
+  // ---------- LOAD + RENDER ----------
   fetch(GEOJSON_URL)
     .then(r => r.json())
-    .then(geo => {
-      // make a group per region
-      regions.forEach(r => regionLayers.set(r, L.layerGroup()));
+    .then(fc => {
+      L.geoJSON(fc, {
+        pointToLayer: (feat, latlng) => {
+          const p = feat.properties || {};
+          const marker = L.marker(latlng, { icon: monIcon(p), title: p.han || p.name || p.country || '' });
+          marker.bindPopup(popupHTML(p));
 
-      geo.features.forEach(f => {
-        const p = f.properties || {};
-        const r = p.region || '';
-        const g = regionLayers.get(r) || regionLayers.get(normalizeRegion(r));
-        const mk = L.marker([f.geometry.coordinates[1], f.geometry.coordinates[0]], {
-          icon: p.icon ? monIcon(p) : undefined
-        }).bindPopup(popupHTML(p));
-
-        if (g) {
-          g.addLayer(mk);
-        } else {
-          // if region unknown, just add to map
-          mk.addTo(map);
+          const region = (p.region || '').trim();
+          const group  = regionGroups.get(region) || regionGroups.get('Uncategorized') || L.layerGroup().addTo(map);
+          group.addLayer(marker);
+          return marker;
         }
       });
 
-      // default: nothing checked (as in your screenshot). If you prefer all on, uncomment:
-      // regionLayers.forEach(g => g.addTo(map));
+      buildRegionUI();
     })
-    .catch(err => console.error('Failed to load GeoJSON', err));
+    .catch(err => console.error('Failed to load GeoJSON:', err));
 
-  function normalizeRegion(s) {
-    return (s || '').replace(/Tohoku/i, 'Ezo-Tohoku')
-                   .replace(/Kanto/i, 'Kantō')
-                   .replace(/Koshin'?etsu/i, 'Kōshin’etsu')
-                   .replace(/Tokai/i, 'Tōkai')
-                   .replace(/Chugoku/i, 'Chūgoku')
-                   .replace(/Kyushu/i, 'Kyūshū');
+  // ---------- UI ----------
+  function buildRegionUI() {
+    const list = document.getElementById('regionList');
+    list.innerHTML = '';
+    REGION_ORDER.forEach(name => {
+      const id = `r_${name.replace(/[^\w]/g, '')}`;
+      const row = document.createElement('label');
+      row.innerHTML = `<input type="checkbox" id="${id}" data-region="${name}" /> ${name}`;
+      list.appendChild(row);
+
+      const cb = row.querySelector('input');
+      cb.addEventListener('change', () => {
+        const g = regionGroups.get(name);
+        if (!g) return;
+        if (cb.checked) map.addLayer(g); else map.removeLayer(g);
+      });
+    });
+
+    // Select all / Clear buttons
+    document.getElementById('btnAll').onclick  = () => setAll(true);
+    document.getElementById('btnNone').onclick = () => setAll(false);
+
+    function setAll(on) {
+      REGION_ORDER.forEach(name => {
+        const g = regionGroups.get(name);
+        const cb = list.querySelector(`[data-region="${name}"]`);
+        if (!g || !cb) return;
+        cb.checked = on;
+        if (on) map.addLayer(g); else map.removeLayer(g);
+      });
+    }
+
+    // Start with everything off: user picks regions
+    setAll(false);
   }
 })();
