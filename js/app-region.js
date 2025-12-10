@@ -1,122 +1,142 @@
-﻿/* Region-filter map (no clustering) */
-
+﻿/* daimyo-map — region filter map (no clusters) */
 (function () {
   // ---------- CONFIG ----------
-  const GEOJSON_URL = 'data/daimyo_domains_with_man_koku.geojson';
-  const ICON_BASE   = 'img/mon/';
-  const DEFAULT_ICON = 'default.png';
+  const GEOJSON_URL = 'data/daimyo_domains_with_man_koku.geojson?v=mk-3';
+  const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const ATTR =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors';
 
-  // Regions list (as in your sheet): keep spelling exactly as GeoJSON properties.region
-  const REGION_LABELS = [
+  const REGIONS = [
     'Ezo-Tohoku','Kantō','Kōshin’etsu','Tōkai','Kinki','Chūgoku','Shikoku','Kyūshū'
   ];
 
   // ---------- MAP ----------
-  const map = L.map('map', { minZoom: 4 }).setView([37.5, 137.5], 6);
+  const map = L.map('map', { zoomControl: true }).setView([38.5, 139.5], 6);
+  L.tileLayer(TILE_URL, { attribution: ATTR, maxZoom: 19 }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  // A plain layer group (NO clustering here)
+  const points = L.layerGroup().addTo(map);
 
-  // layer container for markers per region
-  const regionLayers = new Map();       // region -> L.LayerGroup
-  const allMarkers   = [];              // for fitBounds when filters change
-
-  // helpers
-  function monDivIcon(p) {
-    const file = (p.icon && String(p.icon).trim()) ? p.icon.trim() : DEFAULT_ICON;
-    const url  = ICON_BASE + file;
-    const html = `<img src="${url}" alt="" onerror="this.onerror=null;this.src='${ICON_BASE + DEFAULT_ICON}'">`;
-    return L.divIcon({ className: 'mon-icon', html, iconSize:[36,36], iconAnchor:[18,18], popupAnchor:[0,-18] });
+  // -------- helpers --------
+  function iconUrlFrom(props) {
+    const raw = (props.icon || '').trim();
+    if (!raw) return null;
+    return `img/mon/${encodeURIComponent(raw)}`;
   }
 
-  function popupHTML(p) {
-    const title = p.name || p.han || p.country || 'Domain';
-    const notes = (p.notes && String(p.notes).trim()) ? p.notes.trim() : '';
-    const rows = [];
-    if (p.prefecture) rows.push(`<div><b>${p.prefecture}</b></div>`);
-    if (p.daimyo)     rows.push(`<div>Daimyo: ${p.daimyo}</div>`);
-    if (p.stipend)    rows.push(`<div>Stipend: ${p.stipend} (Man-koku)</div>`);
-    if (notes)        rows.push(`<div style="margin-top:4px">${notes}</div>`);
-    if (p.wikipedia_url) rows.push(`<div style="margin-top:6px"><a href="${p.wikipedia_url}" target="_blank" rel="noopener">Wikipedia</a></div>`);
+  function makeIcon(props) {
+    const url = iconUrlFrom(props);
+    if (!url) return null;
+    return L.icon({
+      iconUrl: url,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      popupAnchor: [0, -12],
+      className: 'mon-icon',
+    });
+  }
 
-    const iconFile = (p.icon && String(p.icon).trim()) ? p.icon.trim() : DEFAULT_ICON;
-    const iconUrl  = ICON_BASE + iconFile;
+  function prettyStipend(props) {
+    const v = props['stipend (Man Koku)'] ?? props.stipend ?? '';
+    return (v === '' || v === null || v === undefined) ? '' : `Stipend: ${v} (Man-koku)`;
+  }
+
+  const F_NOTE_NAMES = new Set([
+    'Izu','Kai','Sado','Hida','Iga','Oki','Hōki','Awaji','Ōsumi'
+  ]);
+  function columnFLine(props) {
+    const f = (props.notes || props['Shogunate Land, Branch Han, Notes'] || '').trim();
+    if (!f) return '';
+    const name = (props.name || props['Han Name'] || '').trim();
+    return F_NOTE_NAMES.has(name) ? f : '';
+  }
+
+  function popupHTML(props) {
+    const title = L.Util.escapeHTML(props.name || props['Han Name'] || '—');
+    const pref  = L.Util.escapeHTML(props.prefecture || props['Current Prefecture'] || '');
+    const daimyo = L.Util.escapeHTML(props.daimyo || '');
+    const stipend = prettyStipend(props);
+    const fLine = columnFLine(props);
+
+    const wikiTxt = props.wikipedia || 'Wikipedia';
+    const wikiUrl = props.wikipedia_url || '#';
+    const wiki = wikiUrl && wikiUrl !== '#'
+      ? `<a href="${wikiUrl}" target="_blank" rel="noopener">${L.Util.escapeHTML(wikiTxt)}</a>`
+      : '';
 
     return `
-      <div class="popup-body">
-        <div class="popup-title">
-          <img src="${iconUrl}" alt="" onerror="this.onerror=null;this.src='${ICON_BASE + DEFAULT_ICON}'">
-          <div>${title}</div>
-        </div>
-        <div style="margin-top:6px">${rows.join('')}</div>
+      <div class="popup">
+        <div class="popup-title">${title}</div>
+        ${pref ? `<div>${pref}</div>` : ''}
+        ${daimyo ? `<div>Daimyo: ${daimyo}</div>` : ''}
+        ${stipend ? `<div>${stipend}</div>` : ''}
+        ${fLine ? `<div>${L.Util.escapeHTML(fLine)}</div>` : ''}
+        ${wiki ? `<div>${wiki}</div>` : ''}
       </div>
     `;
   }
 
-  // create UI checkboxes
-  const checksWrap = document.getElementById('regionChecks');
-  function addCheck(name) {
-    const id = 'r_' + name.replace(/\W+/g,'_');
+  // ---------- UI (checkbox panel) ----------
+  const panel = document.getElementById('regionPanel');
+  panel.innerHTML = `
+    <div class="panel">
+      <div class="panel-title">Regions</div>
+      <div class="panel-row">
+        <button id="selAll">Select all</button>
+        <button id="clrAll">Clear</button>
+      </div>
+      <div id="checks"></div>
+    </div>
+  `;
+  const checks = panel.querySelector('#checks');
+  REGIONS.forEach(r => {
+    const id = 'r_' + r.replace(/\W+/g,'_');
     const div = document.createElement('div');
-    div.className = 'row';
-    div.innerHTML = `<label><input type="checkbox" id="${id}" data-region="${name}"> ${name}</label>`;
-    checksWrap.appendChild(div);
-    return document.getElementById(id);
-  }
-  const checkboxes = REGION_LABELS.map(addCheck);
-  document.getElementById('selectAll').onclick = () => { checkboxes.forEach(c=>{c.checked=true;}); applyFilter(); };
-  document.getElementById('clearAll').onclick  = () => { checkboxes.forEach(c=>{c.checked=false;}); applyFilter(); };
-  checkboxes.forEach(c => c.addEventListener('change', applyFilter));
+    div.className = 'check';
+    div.innerHTML = `<label><input type="checkbox" id="${id}" checked> ${r}</label>`;
+    checks.appendChild(div);
+  });
+  document.getElementById('selAll').onclick = () =>
+    checks.querySelectorAll('input[type=checkbox]').forEach(c => (c.checked = true, refresh()));
+  document.getElementById('clrAll').onclick = () =>
+    checks.querySelectorAll('input[type=checkbox]').forEach(c => (c.checked = false, refresh()));
+  checks.addEventListener('change', refresh);
 
-  // load GeoJSON and build markers
-  fetch(GEOJSON_URL + '?v=mk-3')
+  // ---------- load + filter ----------
+  let features = [];
+  fetch(GEOJSON_URL)
     .then(r => r.json())
     .then(geo => {
-      REGION_LABELS.forEach(r => regionLayers.set(r, L.layerGroup().addTo(map)));
-
-      geo.features.forEach(f => {
-        const p = f.properties || {};
-        const region = p.region || '';
-        if (!regionLayers.has(region)) return;
-        if (!f.geometry || f.geometry.type !== 'Point') return;
-        const [lon, lat] = f.geometry.coordinates || [];
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-
-        const m = L.marker([lat, lon], { icon: monDivIcon(p) }).bindPopup(popupHTML(p));
-        regionLayers.get(region).addLayer(m);
-        allMarkers.push(m);
-      });
-
-      // start with all regions visible
-      checkboxes.forEach(c => c.checked = true);
-      applyFilter();
+      features = geo.features || [];
+      refresh();
+      // fit once
+      const layer = L.geoJSON(geo);
+      map.fitBounds(layer.getBounds(), { padding: [20,20] });
     })
-    .catch(err => console.error('Failed to load GeoJSON:', err));
-
-  function applyFilter() {
-    // toggle layers by region
-    REGION_LABELS.forEach(name => {
-      const lg = regionLayers.get(name);
-      const cb = checkboxes.find(c => c.dataset.region === name);
-      if (!lg) return;
-      if (cb && cb.checked) {
-        if (!map.hasLayer(lg)) map.addLayer(lg);
-      } else {
-        if (map.hasLayer(lg)) map.removeLayer(lg);
-      }
+    .catch(err => {
+      console.error('Failed to load GeoJSON:', err);
+      alert('Failed to load map data. See console for details.');
     });
 
-    // fit to visible markers
-    const visible = [];
-    REGION_LABELS.forEach(name => {
-      const lg = regionLayers.get(name);
-      if (lg && map.hasLayer(lg)) lg.eachLayer(m => visible.push(m));
+  function currentRegions() {
+    const on = new Set();
+    checks.querySelectorAll('input[type=checkbox]').forEach(c => {
+      if (c.checked) on.add(c.parentElement.textContent.trim());
     });
-    if (visible.length) {
-      const grp = L.featureGroup(visible);
-      map.fitBounds(grp.getBounds().pad(0.2));
-    }
+    return on;
+  }
+
+  function refresh() {
+    points.clearLayers();
+    const on = currentRegions();
+    features.forEach(f => {
+      const props = f.properties || {};
+      if (!on.has(props.region || props['Region'])) return;
+      const latlng = [f.geometry.coordinates[1], f.geometry.coordinates[0]];
+      const ic = makeIcon(props);
+      const m = ic ? L.marker(latlng, { icon: ic }) : L.marker(latlng);
+      m.bindPopup(popupHTML(props));
+      points.addLayer(m);
+    });
   }
 })();

@@ -1,80 +1,106 @@
-﻿/* Main map (clustered) */
-
+﻿/* daimyo-map — main map with clusters and (Man-koku) stipend  */
 (function () {
   // ---------- CONFIG ----------
-  const GEOJSON_URL = 'data/daimyo_domains_with_man_koku.geojson';
-  const ICON_BASE   = 'img/mon/';
-  const DEFAULT_ICON = 'default.png';
+  const GEOJSON_URL = 'data/daimyo_domains_with_man_koku.geojson?v=mk-3';
+  const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const ATTR =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors';
 
   // ---------- MAP ----------
-  const map = L.map('map', { minZoom: 4 }).setView([37.5, 137.5], 6);
+  const map = L.map('map', { zoomControl: true }).setView([38.5, 139.5], 6);
+  L.tileLayer(TILE_URL, { attribution: ATTR, maxZoom: 19 }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-    attribution: '&copy; OpenStreetMap contributors'
+  // Cluster group (main map uses clusters)
+  const clusters = L.markerClusterGroup({
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    disableClusteringAtZoom: 10,
   }).addTo(map);
 
-  // cluster group
-  const clusters = L.markerClusterGroup({ spiderfyOnMaxZoom: true });
+  // -------- helpers --------
+  function iconUrlFrom(props) {
+    // props.icon may contain spaces / apostrophes. Encode *file name* only.
+    const raw = (props.icon || '').trim();
+    if (!raw) return null;
+    return `img/mon/${encodeURIComponent(raw)}`;
+  }
 
-  // helper: build icon (divIcon so <img onerror> can fallback)
-  function monDivIcon(p) {
-    const file = (p.icon && String(p.icon).trim()) ? p.icon.trim() : DEFAULT_ICON;
-    const url  = ICON_BASE + file;
-    const html = `<img src="${url}" alt="" onerror="this.onerror=null;this.src='${ICON_BASE + DEFAULT_ICON}'">`;
-    return L.divIcon({
+  function makeIcon(props) {
+    const url = iconUrlFrom(props);
+    if (!url) return null;
+
+    // a tidy mon icon
+    return L.icon({
+      iconUrl: url,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+      popupAnchor: [0, -12],
       className: 'mon-icon',
-      html,
-      iconSize: [36,36],
-      iconAnchor: [18,18],
-      popupAnchor: [0,-18]
     });
   }
 
-  // helper: popup html
-  function popupHTML(p) {
-    const title = p.name || p.han || p.country || 'Domain';
-    const notes = (p.notes && String(p.notes).trim()) ? p.notes.trim() : '';
-    const rows = [];
-    if (p.prefecture) rows.push(`<div><b>${p.prefecture}</b></div>`);
-    if (p.daimyo)     rows.push(`<div>Daimyo: ${p.daimyo}</div>`);
-    if (p.stipend)    rows.push(`<div>Stipend: ${p.stipend} (Man-koku)</div>`);
-    if (notes)        rows.push(`<div style="margin-top:4px">${notes}</div>`);
-    if (p.wikipedia_url) rows.push(`<div style="margin-top:6px"><a href="${p.wikipedia_url}" target="_blank" rel="noopener">Wikipedia</a></div>`);
+  function prettyStipend(props) {
+    const v = props['stipend (Man Koku)'] ?? props.stipend ?? '';
+    if (v === '' || v === null || v === undefined) return '';
+    // keep original number, add unit once
+    return `Stipend: ${v} (Man-koku)`;
+  }
 
-    // small icon preview left of title
-    const iconFile = (p.icon && String(p.icon).trim()) ? p.icon.trim() : DEFAULT_ICON;
-    const iconUrl  = ICON_BASE + iconFile;
+  // Column F note logic (your list of special rows)
+  const F_NOTE_NAMES = new Set([
+    'Izu','Kai','Sado','Hida','Iga','Oki','Hōki','Awaji','Ōsumi'
+  ]);
+  function columnFLine(props) {
+    const f = (props.notes || props['Shogunate Land, Branch Han, Notes'] || '').trim();
+    if (!f) return '';
+    const name = (props.name || props['Han Name'] || '').trim();
+    if (F_NOTE_NAMES.has(name)) return f;  // show line for the special rows
+    return ''; // hide elsewhere
+  }
+
+  function popupHTML(props) {
+    const title = L.Util.escapeHTML(props.name || props['Han Name'] || '—');
+    const pref  = L.Util.escapeHTML(props.prefecture || props['Current Prefecture'] || '');
+    const daimyo = L.Util.escapeHTML(props.daimyo || '');
+    const stipend = prettyStipend(props);
+    const fLine = columnFLine(props);
+
+    const wikiTxt = props.wikipedia || 'Wikipedia';
+    const wikiUrl = props.wikipedia_url || '#';
+    const wiki = wikiUrl && wikiUrl !== '#'
+      ? `<a href="${wikiUrl}" target="_blank" rel="noopener">${L.Util.escapeHTML(wikiTxt)}</a>`
+      : '';
 
     return `
-      <div class="popup-body">
-        <div class="popup-title">
-          <img src="${iconUrl}" alt="" onerror="this.onerror=null;this.src='${ICON_BASE + DEFAULT_ICON}'">
-          <div>${title}</div>
-        </div>
-        <div style="margin-top:6px">${rows.join('')}</div>
+      <div class="popup">
+        <div class="popup-title">${title}</div>
+        ${pref ? `<div>${pref}</div>` : ''}
+        ${daimyo ? `<div>Daimyo: ${daimyo}</div>` : ''}
+        ${stipend ? `<div>${stipend}</div>` : ''}
+        ${fLine ? `<div>${L.Util.escapeHTML(fLine)}</div>` : ''}
+        ${wiki ? `<div>${wiki}</div>` : ''}
       </div>
     `;
   }
 
-  // load GeoJSON
-  fetch(GEOJSON_URL + '?v=mk-3')
+  // ---------- load ----------
+  fetch(GEOJSON_URL)
     .then(r => r.json())
     .then(geo => {
-      geo.features.forEach(f => {
-        const p = f.properties || {};
-        if (!f.geometry || f.geometry.type !== 'Point') return;
-        const [lon, lat] = f.geometry.coordinates || [];
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-
-        const m = L.marker([lat, lon], { icon: monDivIcon(p) }).bindPopup(popupHTML(p));
-        clusters.addLayer(m);
+      const layer = L.geoJSON(geo, {
+        pointToLayer: (feat, latlng) => {
+          const props = feat.properties || {};
+          const ic = makeIcon(props);
+          const m = ic ? L.marker(latlng, { icon: ic }) : L.marker(latlng);
+          m.bindPopup(popupHTML(props));
+          return m;
+        }
       });
-
-      map.addLayer(clusters);
-      if (clusters.getLayers().length) {
-        map.fitBounds(clusters.getBounds().pad(0.2));
-      }
+      clusters.addLayer(layer);
+      map.fitBounds(layer.getBounds(), { padding: [20, 20] });
     })
-    .catch(err => console.error('Failed to load GeoJSON:', err));
+    .catch(err => {
+      console.error('Failed to load GeoJSON:', err);
+      alert('Failed to load map data. See console for details.');
+    });
 })();
