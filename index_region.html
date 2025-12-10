@@ -2,36 +2,34 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daimyo Map – Region filters</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Leaflet (no SRI) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <style>
-    html, body, #map { height:100%; margin:0; }
-    .panel { position:absolute; left:10px; top:10px; z-index:1000; background:#fff; padding:.5rem .75rem; border-radius:.5rem; box-shadow:0 6px 16px rgba(0,0,0,.15); font-family:system-ui,-apple-system,Segoe UI,Roboto; }
-    .popup-title { display:flex; align-items:center; gap:.5rem; font-weight:600; }
-    .popup-title img { width:28px; height:28px; border-radius:50%; border:1px solid #ccc; }
-    .panel h3 { margin:.25rem 0 .5rem; font-size:14px; }
-    .panel label { display:block; font-size:14px; margin:.25rem 0; }
-    .panel button { margin-right:.5rem; }
+    html, body, #map { height: 100%; margin: 0; }
+    .panel {
+      position: absolute; top: 10px; left: 10px;
+      background: #fff; padding: 8px 10px; border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15); z-index: 500;
+      font-family: system-ui, sans-serif; font-size: 14px;
+      max-height: 70vh; overflow: auto;
+    }
+    .panel h3 { margin: 0 0 6px; font-size: 14px; }
+    .panel label { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-
-  <!-- Region checkboxes container -->
   <div class="panel" id="regionPanel">
     <h3>Regions</h3>
-    <div style="margin-bottom:.25rem;">
-      <button id="selAll">Select all</button>
-      <button id="clearAll">Clear</button>
+    <div style="display:flex; gap:8px; margin-bottom:6px;">
+      <button id="btnAll">Select all</button>
+      <button id="btnNone">Clear</button>
     </div>
     <div id="regionChecks"></div>
   </div>
-
   <script src="js/app-region.js?v=mk3"></script>
 </body>
 </html>
