@@ -1,23 +1,22 @@
-﻿/* js/app.js — with NOTES and better title fallback */
+﻿/* js/app.js — stipend unit + shared popup */
 (function () {
-  // --------- CONFIG ----------
+  // ---------- CONFIG ----------
   const GEOJSON_URL = 'data/daimyo_domains.geojson';
   const ICON_BASE   = 'imgs/';
 
-  // If your GeoJSON keys differ, map them here:
+  // If your sheet/GeoJSON uses different keys, map them here:
   const FIELD = {
-    name:      'name',          // Han Name (may be blank for shogunate lands)
-    country:   'country',       // Country (region group) — used as fallback title
-    prefect:   'prefecture',    // Current Prefecture
-    daimyo:    'daimyo',        // Daimyo Family Name
-    stipend:   'stipend',       // Stipend (Koku)
-    notes:     'notes',         // Shogunate Land / Territory … (column F)
-    icon:      'icon',          // Mon (Crest) filename
-    wikiRaw:   'wikipedia',     // original sheet text or URL
-    wikiUrl:   'wikipedia_url'  // explicit URL if present
+    name:      'name',
+    prefect:   'prefecture',
+    daimyo:    'daimyo',
+    stipend:   'stipend',        // <- we’ll format this with a unit
+    icon:      'icon',
+    wikiRaw:   'wikipedia',
+    wikiUrl:   'wikipedia_url',
+    notes:     'notes'           // (for the other request you had)
   };
 
-  // --------- HELPERS ----------
+  // ---------- HELPERS ----------
   function buildWikiURL(props) {
     const explicit = props[FIELD.wikiUrl];
     if (typeof explicit === 'string' && /^https?:\/\//i.test(explicit)) return explicit;
@@ -30,22 +29,31 @@
     return 'https://en.wikipedia.org/wiki/' + encodeURIComponent(title.replace(/\s+/g, '_'));
   }
 
-  function popupHTML(props) {
-    // Title: use Han Name; if blank, fall back to Country (region group)
-    const title    = props[FIELD.name] || props[FIELD.country] || '(unknown)';
-    const prefect  = props[FIELD.prefect] || '';
-    const notes    = props[FIELD.notes] || '';   // <— NEW: shows “Shogunate Land …”
-    const daimyo   = props[FIELD.daimyo] || '';
-    const stipend  = props[FIELD.stipend] || '';
-    const wiki     = buildWikiURL(props);
-    const iconPath = props[FIELD.icon] ? `${ICON_BASE}${props[FIELD.icon]}` : null;
+  // NEW: consistent stipend formatter (adds unit; robust to existing text)
+  function formatStipend(v) {
+    if (v == null || v === '') return '';
+    const s = String(v).trim();
+    // If it already contains a unit, leave it as-is
+    if (/[万]|man|koku/i.test(s)) return s;
+    // If it looks numeric, append “man-koku”
+    const n = Number(s);
+    return Number.isFinite(n) ? `${s} man-koku` : s;
+  }
 
-    const iconImg = iconPath
-      ? `<img src="${iconPath}" alt="" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;border-radius:4px;">`
+  // ONE popup used by both maps
+  function popupHTML(props) {
+    const name    = props[FIELD.name]    || '(unknown)';
+    const prefect = props[FIELD.prefect] || '';
+    const daimyo  = props[FIELD.daimyo]  || '';
+    const stipend = formatStipend(props[FIELD.stipend]);
+    const wiki    = buildWikiURL(props);
+    const icon    = props[FIELD.icon] ? `${ICON_BASE}${props[FIELD.icon]}` : null;
+
+    const iconImg = icon
+      ? `<img src="${icon}" alt="" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;border-radius:4px;">`
       : '';
 
     const lines = [];
-    if (notes)   lines.push(`${notes}`);                // shown first after the title
     if (prefect) lines.push(`${prefect}`);
     if (daimyo)  lines.push(`Daimyo: ${daimyo}`);
     if (stipend) lines.push(`Stipend: ${stipend}`);
@@ -55,9 +63,9 @@
       : '';
 
     return `
-      <div style="min-width:240px">
+      <div style="min-width:220px">
         <div style="font-weight:600;display:flex;align-items:center;">
-          ${iconImg}<span>${title}</span>
+          ${iconImg}<span>${name}</span>
         </div>
         <div style="margin-top:6px;line-height:1.3">${lines.join('<br>')}</div>
         ${wikiLine}
@@ -77,11 +85,12 @@
     });
   }
 
-  // --------- MAP ----------
+  // ---------- MAP ----------
   const map = L.map('map', { preferCanvas: true }).setView([36.5, 137.7], 6);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
 
   const cluster = L.markerClusterGroup({
@@ -91,7 +100,7 @@
   });
   map.addLayer(cluster);
 
-  // --------- LOAD + RENDER ----------
+  // ---------- LOAD + RENDER ----------
   fetch(GEOJSON_URL)
     .then(r => r.json())
     .then(geojson => {
@@ -99,9 +108,9 @@
         pointToLayer: (feat, latlng) => {
           const props = feat.properties || {};
           const icon  = makeIcon(props);
-          const m = icon ? L.marker(latlng, { icon }) : L.marker(latlng);
-          m.bindPopup(popupHTML(props));
-          return m;
+          const marker = icon ? L.marker(latlng, { icon }) : L.marker(latlng);
+          marker.bindPopup(popupHTML(props));
+          return marker;
         }
       }).eachLayer(layer => cluster.addLayer(layer));
 
