@@ -2,33 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daimyo Map – Region filters</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+
+  <!-- Leaflet (no SRI) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
-    html, body, #map { height: 100%; margin: 0; }
-    .panel {
-      position: absolute;
-      top: 10px; left: 10px;
-      background: #fff; padding: 10px 12px; border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.15); z-index: 500;
-      min-width: 150px;
-    }
-    .panel-title { font-weight: 600; margin-bottom: 6px; }
-    .panel-row { display:flex; gap:8px; margin-bottom: 8px; }
-    .check { margin: 4px 0; }
-    .popup-title { font-weight: 600; margin-bottom: 4px; }
-    .mon-icon { border-radius: 50%; box-shadow: 0 0 0 1px #000 inset; }
+    html, body, #map { height:100%; margin:0; }
+    .panel { position:absolute; left:10px; top:10px; z-index:1000; background:#fff; padding:.5rem .75rem; border-radius:.5rem; box-shadow:0 6px 16px rgba(0,0,0,.15); font-family:system-ui,-apple-system,Segoe UI,Roboto; }
+    .popup-title { display:flex; align-items:center; gap:.5rem; font-weight:600; }
+    .popup-title img { width:28px; height:28px; border-radius:50%; border:1px solid #ccc; }
+    .panel h3 { margin:.25rem 0 .5rem; font-size:14px; }
+    .panel label { display:block; font-size:14px; margin:.25rem 0; }
+    .panel button { margin-right:.5rem; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="regionPanel"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/app-region.js?v=mk-3"></script>
+  <!-- Region checkboxes container -->
+  <div class="panel" id="regionPanel">
+    <h3>Regions</h3>
+    <div style="margin-bottom:.25rem;">
+      <button id="selAll">Select all</button>
+      <button id="clearAll">Clear</button>
+    </div>
+    <div id="regionChecks"></div>
+  </div>
+
+  <script src="js/app-region.js?v=mk3"></script>
 </body>
 </html>
