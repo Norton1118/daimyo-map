@@ -1,152 +1,107 @@
-﻿/* js/app-region.js — map with region filters (mk-2) */
+﻿/* js/app-region.js — with region checkboxes */
+
 (function () {
   // ---------- CONFIG ----------
-  const VERSION     = 'mk-2';
-  const GEOJSON_URL = `data/daimyo_domains.geojson?v=${VERSION}`;
-  const ICON_BASE   = 'img/mon/';
-  const ICON_SIZE   = 44;
+  const GEOJSON_URL = 'data/daimyo_domains.geojson?v=mk3';
+  const ICON_BASE   = 'icons/';
 
-  // Expected region names in the GeoJSON `properties.region` field:
-  const REGION_ORDER = [
-    'Ezo-Tohoku',
-    'Kantō',
-    'Kōshin’etsu',
-    'Tōkai',
-    'Kinki',
-    'Chūgoku',
-    'Shikoku',
-    'Kyūshū'
-  ];
-
-  // ---------- MAP ----------
-  const map = L.map('map', {
-    minZoom: 4,
-    maxZoom: 19,
-    zoomSnap: 0.25,
-    zoomDelta: 0.5
-  }).setView([36.4, 138.0], 6);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors'
-  }).addTo(map);
-
-  // A LayerGroup per region to toggle on/off
-  const regionGroups = new Map();
-  REGION_ORDER.forEach(r => regionGroups.set(r, L.layerGroup().addTo(map)));
-
-  // ---------- HELPERS ----------
-  function getNotes(p) {
-    const candidates = [
-      'notes',
-      'Shogunate Land, Branch Han, Notes',
-      'shogunate',
-      'shogunate_notes',
-      'description'
-    ];
-    for (const k of candidates) {
-      const v = p && p[k];
-      if (v != null && String(v).trim() !== '') return String(v).trim();
-    }
-    return '';
-  }
+  // ---------- Small utils ----------
+  const esc = (s) =>
+    (s == null ? '' : String(s))
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
   function popupHTML(p) {
-    const title =
-      (p.han && p.han.trim()) ||
-      (p.name && p.name.trim()) ||
-      p.country ||
-      'Han';
+    const title = esc(p.name);
+    const notesBadge = p.notes ? ` <span style="font-weight:600;">— ${esc(p.notes)}</span>` : '';
+    const crest = p.icon ? `<img src="${ICON_BASE}${esc(p.icon)}" alt="">` : '';
 
-    const lines = [];
-    if (p.prefecture) lines.push(p.prefecture);
-    if (p.daimyo)     lines.push(`Daimyo: ${p.daimyo}`);
-    if (p.stipend)    lines.push(`Stipend: ${p.stipend} (Man-koku)`);
-
-    const notes = getNotes(p);
-    if (notes)       lines.push(notes);
-
-    const wikiHtml = p.wikipedia_url
-      ? `<a href="${p.wikipedia_url}" target="_blank" rel="noopener">Wikipedia</a>`
-      : (p.wikipedia ? L.Util.escapeHTML(p.wikipedia) : '');
-
-    return [
-      `<div class="popup">`,
-      `  <div class="popup-title">`,
-      p.icon ? `<img class="popup-mon" src="${ICON_BASE}${p.icon}" alt="" />` : '',
-      `    <span>${L.Util.escapeHTML(title)}</span>`,
-      `  </div>`,
-      ...lines.map(t => `  <div>${L.Util.escapeHTML(t)}</div>`),
-      wikiHtml ? `  <div>${wikiHtml}</div>` : '',
-      `</div>`
-    ].join('\n');
+    const rows = [];
+    if (p.country)    rows.push(`${esc(p.country)}`);
+    if (p.prefecture) rows.push(`${esc(p.prefecture)}`);
+    if (p.daimyo)     rows.push(`Daimyo: ${esc(p.daimyo)}`);
+    if (p.stipend || p['stipend (Man Koku)']) {
+      const s = p['stipend (Man Koku)'] || p.stipend;
+      rows.push(`Stipend: ${esc(s)} (Man-koku)`);
+    }
+    if (p.wikipedia_url) {
+      const text = p.wikipedia || 'Wikipedia';
+      rows.push(`<a href="${esc(p.wikipedia_url)}" target="_blank" rel="noopener">` + esc(text) + `</a>`);
+    }
+    return `
+      <div class="popup-title">${crest}<div>${title}${notesBadge}</div></div>
+      <div class="popup-body">${rows.map(r=>`<div>${r}</div>`).join('')}</div>
+    `;
   }
 
-  function monIcon(p) {
-    const url = p.icon ? `${ICON_BASE}${p.icon}` : null;
-    return L.icon({
-      iconUrl: url || undefined,
-      iconSize: [ICON_SIZE, ICON_SIZE],
-      iconAnchor: [ICON_SIZE/2, ICON_SIZE/2],
-      popupAnchor: [0, -ICON_SIZE/2],
-      className: url ? '' : 'blank-icon'
+  function makeMarker(feature, latlng) {
+    const p = feature.properties || {};
+    const html = p.icon
+      ? `<div style="width:34px;height:34px;border-radius:6px;border:2px solid #111;overflow:hidden;background:#fff;display:flex;align-items:center;justify-content:center;">
+           <img src="${ICON_BASE}${esc(p.icon)}" style="max-width:100%;max-height:100%;" alt="">
+         </div>`
+      : '';
+    const icon = L.divIcon({ html, className: 'mon-icon', iconSize: [36,36], iconAnchor:[18,18], popupAnchor:[0,-8] });
+    return L.marker(latlng, { icon });
+  }
+
+  // ---------- Map ----------
+  const map = L.map('map', { preferCanvas: false }).setView([37.5, 137.5], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18, attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  const cluster = L.markerClusterGroup({
+    showCoverageOnHover:false, maxClusterRadius: 50
+  }).addTo(map);
+
+  // ---------- Filtering ----------
+  let allFeatures = [];
+  let currentLayer = null;
+
+  const filterBox = document.getElementById('filter');
+  const inputs = Array.from(filterBox.querySelectorAll('input[type="checkbox"][data-region]'));
+
+  function selectedRegions() {
+    const active = inputs.filter(i => i.checked).map(i => i.getAttribute('data-region'));
+    // If none selected, show everything (matches previous behavior)
+    return active.length ? new Set(active) : null;
+  }
+
+  function refresh() {
+    if (!allFeatures.length) return;
+    const allow = selectedRegions(); // null => show all
+    const fc = {
+      type: 'FeatureCollection',
+      features: allow
+        ? allFeatures.filter(f => allow.has((f.properties || {}).region))
+        : allFeatures
+    };
+
+    if (currentLayer) {
+      cluster.removeLayer(currentLayer);
+      currentLayer = null;
+    }
+    currentLayer = L.geoJSON(fc, {
+      pointToLayer: makeMarker,
+      onEachFeature: (feat, layer) => {
+        layer.bindPopup(popupHTML(feat.properties || {}), { maxWidth: 320 });
+      }
     });
+    cluster.addLayer(currentLayer);
   }
 
-  // ---------- LOAD + RENDER ----------
+  // Buttons
+  document.getElementById('selectAll').onclick = () => { inputs.forEach(i => i.checked = true);  refresh(); };
+  document.getElementById('clearAll').onclick  = () => { inputs.forEach(i => i.checked = false); refresh(); };
+  inputs.forEach(i => i.addEventListener('change', refresh));
+
+  // ---------- Data ----------
   fetch(GEOJSON_URL)
     .then(r => r.json())
     .then(fc => {
-      L.geoJSON(fc, {
-        pointToLayer: (feat, latlng) => {
-          const p = feat.properties || {};
-          const marker = L.marker(latlng, { icon: monIcon(p), title: p.han || p.name || p.country || '' });
-          marker.bindPopup(popupHTML(p));
-
-          const region = (p.region || '').trim();
-          const group  = regionGroups.get(region) || regionGroups.get('Uncategorized') || L.layerGroup().addTo(map);
-          group.addLayer(marker);
-          return marker;
-        }
-      });
-
-      buildRegionUI();
+      allFeatures = fc.features || [];
+      refresh();
     })
     .catch(err => console.error('Failed to load GeoJSON:', err));
-
-  // ---------- UI ----------
-  function buildRegionUI() {
-    const list = document.getElementById('regionList');
-    list.innerHTML = '';
-    REGION_ORDER.forEach(name => {
-      const id = `r_${name.replace(/[^\w]/g, '')}`;
-      const row = document.createElement('label');
-      row.innerHTML = `<input type="checkbox" id="${id}" data-region="${name}" /> ${name}`;
-      list.appendChild(row);
-
-      const cb = row.querySelector('input');
-      cb.addEventListener('change', () => {
-        const g = regionGroups.get(name);
-        if (!g) return;
-        if (cb.checked) map.addLayer(g); else map.removeLayer(g);
-      });
-    });
-
-    // Select all / Clear buttons
-    document.getElementById('btnAll').onclick  = () => setAll(true);
-    document.getElementById('btnNone').onclick = () => setAll(false);
-
-    function setAll(on) {
-      REGION_ORDER.forEach(name => {
-        const g = regionGroups.get(name);
-        const cb = list.querySelector(`[data-region="${name}"]`);
-        if (!g || !cb) return;
-        cb.checked = on;
-        if (on) map.addLayer(g); else map.removeLayer(g);
-      });
-    }
-
-    // Start with everything off: user picks regions
-    setAll(false);
-  }
 })();
