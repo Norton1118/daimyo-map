@@ -1,73 +1,97 @@
-﻿/* js/app.js — main (no region filter) */
+﻿/* js/app.js — unified popups + stipend (Man-koku) + F-column note in title */
 
-(function () {
-  // ---------- CONFIG ----------
-  const GEOJSON_URL = 'data/daimyo_domains.geojson?v=mk3';
-  const ICON_BASE   = 'icons/';
+/* ---- Safety: Leaflet 1.7 compatibility polyfill (no-op on 1.9+) ---- */
+if (window.L && L.Util && typeof L.Util.escapeHTML !== 'function') {
+  L.Util.escapeHTML = function (s) {
+    return String(s).replace(/[&<>"'`=\/]/g, (c) =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c])
+    );
+  };
+}
 
-  // ---------- Small utils ----------
-  const esc = (s) =>
-    (s == null ? '' : String(s))
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+/* -------- CONFIG -------- */
+const GEOJSON_URL = 'data/daimyo_domains.geojson';   // adjust if needed
+const ICON_BASE   = 'img/mon/';                      // adjust if needed
+const START_VIEW  = [37.0, 138.0];
+const START_ZOOM  = 6;
 
-  function popupHTML(p) {
-    // Always show name; add (notes) if present for the “F column” visibility
-    const title = esc(p.name);
-    const notesBadge = p.notes ? ` <span style="font-weight:600;">— ${esc(p.notes)}</span>` : '';
-    const crest = p.icon ? `<img src="${ICON_BASE}${esc(p.icon)}" alt="">` : '';
+/* -------- Map -------- */
+const map = L.map('map', { zoomControl: true })
+  .setView(START_VIEW, START_ZOOM);
 
-    const rows = [];
-    if (p.country)    rows.push(`${esc(p.country)}`);
-    if (p.prefecture) rows.push(`${esc(p.prefecture)}`);
-    if (p.daimyo)     rows.push(`Daimyo: ${esc(p.daimyo)}`);
-    if (p.stipend || p['stipend (Man Koku)']) {
-      const s = p['stipend (Man Koku)'] || p.stipend;
-      rows.push(`Stipend: ${esc(s)} (Man-koku)`);
-    }
-    if (p.wikipedia_url) {
-      const text = p.wikipedia || 'Wikipedia';
-      rows.push(`<a href="${esc(p.wikipedia_url)}" target="_blank" rel="noopener">` + esc(text) + `</a>`);
-    }
-    return `
-      <div class="popup-title">${crest}<div>${title}${notesBadge}</div></div>
-      <div class="popup-body">${rows.map(r=>`<div>${r}</div>`).join('')}</div>
-    `;
-  }
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
 
-  function makeMarker(feature, latlng) {
-    const p = feature.properties || {};
-    // round black frame for crests; fallbacks ok even if image missing
-    const html = p.icon
-      ? `<div style="width:34px;height:34px;border-radius:6px;border:2px solid #111;overflow:hidden;background:#fff;display:flex;align-items:center;justify-content:center;">
-           <img src="${ICON_BASE}${esc(p.icon)}" style="max-width:100%;max-height:100%;" alt="">
-         </div>`
-      : '';
-    const icon = L.divIcon({ html, className: 'mon-icon', iconSize: [36,36], iconAnchor:[18,18], popupAnchor:[0,-8] });
-    return L.marker(latlng, { icon });
-  }
+/* Cluster group (optional; comment if you don’t want clustering) */
+const cluster = L.markerClusterGroup({ spiderfyOnMaxZoom: true });
 
-  // ---------- Map ----------
-  const map = L.map('map', { preferCanvas: false }).setView([37.5, 137.5], 6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18, attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+/* -------- Helpers -------- */
+function stipendText(p) {
+  // Accept several possible keys; display as “Stipend: N (Man-koku)”
+  const v =
+    p['stipend'] ??
+    p['Stipend'] ??
+    p['stipend (Man Koku)'] ??
+    p['stipend (Man-koku)'];
+  if (v == null || v === '') return '';
+  return `Stipend: ${L.Util.escapeHTML(String(v))} (Man-koku)`;
+}
 
-  const cluster = L.markerClusterGroup({
-    showCoverageOnHover:false, maxClusterRadius: 50
-  }).addTo(map);
+function popupTitle(p) {
+  // If the han name is missing/empty, show “<name> — <notes>”
+  // Examples where Han name is blank: Sado, Izu, etc. (notes carries “Shogunate Land”, “Territory …”)
+  const name = (p.name || p.han || '').trim();
+  const notes = (p.notes || '').trim();
+  if (!name && notes) return notes;               // extremely rare
+  if (name && notes && !p.han) return `${name} — ${notes}`;
+  return name || (p.prefecture || '');
+}
 
-  // ---------- Data ----------
-  fetch(GEOJSON_URL)
-    .then(r => r.json())
-    .then(fc => {
-      const layer = L.geoJSON(fc, {
-        pointToLayer: makeMarker,
-        onEachFeature: (feat, layer) => {
-          layer.bindPopup(popupHTML(feat.properties || {}), { maxWidth: 320 });
-        }
-      });
-      cluster.addLayer(layer);
-    })
-    .catch(err => console.error('Failed to load GeoJSON:', err));
-})();
+function popupHTML(p) {
+  const lines = [];
+  const title = popupTitle(p);
+  if (title) lines.push(`<h3 class="popup-title">${L.Util.escapeHTML(title)}</h3>`);
+  if (p.prefecture) lines.push(`<p class="popup-line">${L.Util.escapeHTML(p.prefecture)}</p>`);
+  if (p.daimyo)     lines.push(`<p class="popup-line">Daimyo: ${L.Util.escapeHTML(p.daimyo)}</p>`);
+  const s = stipendText(p);
+  if (s)            lines.push(`<p class="popup-line">${s}</p>`);
+  const url = p.wikipedia_url || p.wikipedia || '';
+  if (url)          lines.push(`<a class="popup-link" href="${L.Util.escapeHTML(url)}" target="_blank" rel="noopener">Wikipedia</a>`);
+  return lines.join('');
+}
+
+function crestIcon(p) {
+  const file = (p.icon || '').trim();
+  if (!file) return null;
+  return L.icon({
+    iconUrl: ICON_BASE + file,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -10],
+    className: 'crest-icon'
+  });
+}
+
+/* -------- Load & render -------- */
+fetch(`${GEOJSON_URL}?v=mk3`)
+  .then((r) => r.json())
+  .then((geojson) => {
+    const layer = L.geoJSON(geojson, {
+      pointToLayer: (feat, latlng) => {
+        const p = feat.properties || {};
+        const ic = crestIcon(p);
+        return ic ? L.marker(latlng, { icon: ic }) : L.marker(latlng);
+      },
+      onEachFeature: (feat, layer) => {
+        const p = feat.properties || {};
+        layer.bindPopup(popupHTML(p));
+      }
+    });
+    cluster.addLayer(layer);
+    cluster.addTo(map);
+  })
+  .catch((err) => {
+    console.error('Failed to load GeoJSON:', err);
+  });

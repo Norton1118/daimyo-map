@@ -1,15 +1,24 @@
-﻿<!doctype html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Daimyo Map – Regions</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daimyo Map – Region checkboxes</title>
+
+  <!-- Leaflet 1.9.4 -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <!-- MarkerCluster -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
@@ -18,46 +27,37 @@
     rel="stylesheet"
     href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
   />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
   <style>
     html, body, #map { height: 100%; margin: 0; }
-    .filter-box {
-      position: absolute; top:12px; left:12px; z-index:1000;
-      background:#fff; padding:10px 12px; border-radius:8px;
-      box-shadow:0 2px 14px rgba(0,0,0,.18); font:14px/1.2 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      width: 140px;
+    .panel {
+      position: absolute; top: 12px; left: 12px; z-index: 1000;
+      background: #fff; padding: 10px 12px; border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.15);
+      font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    .filter-box h4 { margin:0 0 6px 0; font-size:14px; }
-    .filter-box .row { display:flex; align-items:center; gap:.4rem; margin:.25rem 0; }
-    .filter-box .actions { display:flex; gap:.5rem; margin-bottom:.5rem; }
-    .popup-title { display:flex; gap:.5rem; align-items:center; font-weight:600; }
-    .popup-title img { width:26px; height:26px; border-radius:50%; border:1px solid #333; }
-    .popup-body { margin-top:.25rem; line-height:1.25rem; }
-    .popup-body a { text-decoration:underline; }
+    .panel h4 { margin: 0 0 8px; font-size: 14px; }
+    .panel .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+    .panel .buttons { display: flex; gap: 8px; margin-bottom: 6px; }
+    .popup-title { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+    .popup-line { margin: 0 0 4px; }
+    .popup-link { margin-top: 6px; display: inline-block; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <div class="filter-box" id="filter">
+  <!-- Region checkboxes -->
+  <div class="panel" id="regionPanel">
     <h4>Regions</h4>
-    <div class="actions">
-      <button id="selectAll" type="button">Select all</button>
-      <button id="clearAll"  type="button">Clear</button>
+    <div class="buttons">
+      <button id="selectAllBtn">Select all</button>
+      <button id="clearBtn">Clear</button>
     </div>
-    <div class="row"><input type="checkbox" data-region="Ezo-Tohoku" id="r1"><label for="r1">Ezo-Tohoku</label></div>
-    <div class="row"><input type="checkbox" data-region="Kantō"       id="r2"><label for="r2">Kantō</label></div>
-    <div class="row"><input type="checkbox" data-region="Kōshin’etsu" id="r3"><label for="r3">Kōshin’etsu</label></div>
-    <div class="row"><input type="checkbox" data-region="Tōkai"       id="r4"><label for="r4">Tōkai</label></div>
-    <div class="row"><input type="checkbox" data-region="Kinki"       id="r5"><label for="r5">Kinki</label></div>
-    <div class="row"><input type="checkbox" data-region="Chūgoku"     id="r6"><label for="r6">Chūgoku</label></div>
-    <div class="row"><input type="checkbox" data-region="Shikoku"     id="r7"><label for="r7">Shikoku</label></div>
-    <div class="row"><input type="checkbox" data-region="Kyūshū"      id="r8"><label for="r8">Kyūshū</label></div>
+    <div id="regionList"></div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="js/app-region.js?v=mk3"></script>
 </body>
 </html>

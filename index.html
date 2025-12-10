@@ -1,15 +1,24 @@
-﻿<!doctype html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Daimyo Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet 1.9.4 -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <!-- MarkerCluster (optional but recommended) -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
@@ -18,21 +27,18 @@
     rel="stylesheet"
     href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
   />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
   <style>
     html, body, #map { height: 100%; margin: 0; }
-    .popup-title { display:flex; gap:.5rem; align-items:center; font-weight:600; }
-    .popup-title img { width:26px; height:26px; border-radius:50%; border:1px solid #333; }
-    .popup-body { margin-top:.25rem; line-height:1.25rem; }
-    .popup-body a { text-decoration:underline; }
+    .popup-title { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+    .popup-line { margin: 0 0 4px; }
+    .popup-link { margin-top: 6px; display: inline-block; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="js/app.js?v=mk3"></script>
 </body>
 </html>
