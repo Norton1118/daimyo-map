@@ -2,31 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daimyo Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <style>
-    html, body { height: 100%; margin: 0; }
-    #map { height: 100vh; }
-    .popup-icon img {
-      width: 28px; height: 28px;
-      border: 2px solid rgba(0,0,0,.25); border-radius: 4px; box-sizing: border-box;
-      background: #fff;
-    }
-    .mon-div-icon {
-      width: 32px; height: 32px; border-radius: 6px; background: #fff;
-      display: grid; place-items: center; box-shadow: 0 0 0 2px #2b2b2b20;
-    }
-    .mon-div-icon img { width: 28px; height: 28px; display: block; }
+    html, body, #map { height: 100%; margin: 0; }
+    .popup-icon { width: 28px; height: 28px; border: 2px solid rgba(0,0,0,.25); border-radius: 4px; box-sizing: border-box; }
+    .crest-marker img { width: 28px; height: 28px; border-radius: 4px; border: 2px solid rgba(0,0,0,.25); background:#fff }
+    .popup-title { font-weight: 600; margin-bottom: 2px; }
+    .popup-row { margin-top: 2px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="js/app.js?v=mk=7"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <script src="js/app.js?v=mk=6"></script>
 </body>
 </html>
