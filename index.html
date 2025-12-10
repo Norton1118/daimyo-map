@@ -4,22 +4,28 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daimyo Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- MarkerCluster (for the main map only) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
   <style>
-    html, body, #map { height: 100%; margin: 0; }
-    .popup-icon { width: 28px; height: 28px; border: 2px solid rgba(0,0,0,.25); border-radius: 4px; box-sizing: border-box; }
-    .crest-marker img { width: 28px; height: 28px; border-radius: 4px; border: 2px solid rgba(0,0,0,.25); background:#fff }
-    .popup-title { font-weight: 600; margin-bottom: 2px; }
-    .popup-row { margin-top: 2px; }
+    html, body { height:100%; margin:0; }
+    #map { height: 100vh; }
+    .popup-card { display:flex; gap:8px; align-items:flex-start; }
+    .popup-card img { width:28px; height:28px; border-radius:4px; border:1px solid rgba(0,0,0,.15); }
+    .popup-card .t { line-height:1.25; }
+    .popup-card .t b { display:block; margin-bottom:2px; }
+    .popup-card .t small { color:#666; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-  <script src="js/app.js?v=mk=6"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
