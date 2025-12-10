@@ -1,116 +1,79 @@
-﻿/* js/app.js — unified popup, resilient stipend key */
+﻿/* js/app.js — unified popups (with Notes + Man-koku) */
 (function () {
-  // --------- CONFIG ----------
-  const GEOJSON_URL = 'data/daimyo_domains.geojson'; // or with_man_koku; both work
-  const ICON_BASE   = 'imgs/';
+  // ---------- CONFIG ----------
+  const GEOJSON_URL = 'data/daimyo_domains.geojson?v=2025-12-10c';
 
-  // If your GeoJSON uses different keys, map them here
-  const FIELD = {
-    name:    'name',
-    prefect: 'prefecture',
-    daimyo:  'daimyo',
-    icon:    'icon',
-    wiki:    'wikipedia',
-    wikiUrl: 'wikipedia_url'
-  };
+  const START = { lat: 36.5, lon: 138.5, zoom: 5 };
 
-  // --------- HELPERS ----------
-  function getStipend(props) {
-    // Accept either "stipend (Man Koku)" or "stipend"
-    const raw = props['stipend (Man Koku)'] ?? props['stipend'];
-    if (raw == null || raw === '') return null;
+  // ---------- MAP ----------
+  const map = L.map('map', { zoomControl: true }).setView([START.lat, START.lon], START.zoom);
 
-    // Coerce to number when possible (allow strings like "28")
-    const n = Number(String(raw).replace(/[^\d.-]/g, ''));
-    if (Number.isFinite(n)) {
-      return `${n} man-koku`;
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors'
+  }).addTo(map);
+
+  // ---------- Helpers ----------
+  function formatStipend(v) {
+    if (v == null || String(v).trim() === '') return '';
+    // If it already includes "koku"/"Man", keep it; else append Man-koku
+    const s = String(v).trim();
+    if (/\b(koku|Man)/i.test(s)) return s;
+    return `${s} (Man-koku)`;
+  }
+
+  function popupHTML(p) {
+    const parts = [];
+
+    if (p.prefecture) parts.push(p.prefecture);
+    if (p.daimyo) parts.push(`Daimyo: ${p.daimyo}`);
+
+    const stipend = formatStipend(p['stipend'] ?? p['stipend (Man Koku)']);
+    if (stipend) parts.push(`Stipend: ${stipend}`);
+
+    // ← NEW: always include Notes (column F) if present
+    if (p.notes) parts.push(p.notes);
+
+    if (p.wikipedia_url) {
+      parts.push(`<a href="${p.wikipedia_url}" target="_blank" rel="noopener">Wikipedia</a>`);
     }
-    // Fallback: show whatever text was provided
-    return String(raw);
+
+    const titleIcon = p.icon ? `<img src="icons/${p.icon}" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;border-radius:3px;border:1px solid #333;background:#fff;">` : '';
+    const title = `<div style="font-weight:600;font-size:14px;margin-bottom:6px;">${titleIcon}${p.name || p.han || ''}</div>`;
+
+    return `${title}<div style="line-height:1.25">${parts.join('<br>')}</div>`;
   }
 
-  function buildWikiURL(props) {
-    const explicit = props[FIELD.wikiUrl];
-    if (typeof explicit === 'string' && /^https?:\/\//i.test(explicit)) return explicit;
-    const raw = props[FIELD.wiki];
-    if (!raw) return null;
-    if (/^https?:\/\//i.test(raw)) return raw;
-    const title = String(raw).replace(/\s*-\s*Wikipedia/i, '').trim();
-    return 'https://en.wikipedia.org/wiki/' + encodeURIComponent(title.replace(/\s+/g, '_'));
-  }
-
-  function popupHTML(props) {
-    const name    = props[FIELD.name]    || '(unknown)';
-    const prefect = props[FIELD.prefect] || '';
-    const daimyo  = props[FIELD.daimyo]  || '';
-    const stipend = getStipend(props);
-    const wiki    = buildWikiURL(props);
-    const icon    = props[FIELD.icon] ? `${ICON_BASE}${props[FIELD.icon]}` : null;
-
-    const iconImg = icon ? `<img src="${icon}" alt="" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;border-radius:4px;">` : '';
-    const lines = [];
-    if (prefect) lines.push(`${prefect}`);
-    if (daimyo)  lines.push(`Daimyo: ${daimyo}`);
-    if (stipend) lines.push(`Stipend: ${stipend}`);
-
-    const wikiLine = wiki ? `<div style="margin-top:6px;"><a href="${wiki}" target="_blank" rel="noopener">Wikipedia</a></div>` : '';
-
-    return `
-      <div style="min-width:220px">
-        <div style="font-weight:600;display:flex;align-items:center;">
-          ${iconImg}<span>${name}</span>
-        </div>
-        <div style="margin-top:6px;line-height:1.3">${lines.join('<br>')}</div>
-        ${wikiLine}
-      </div>
-    `;
-  }
-
-  function makeIcon(props) {
-    const file = props[FIELD.icon];
-    if (!file) return null;
+  function monIcon(p) {
     return L.icon({
-      iconUrl: ICON_BASE + file,
+      iconUrl: `icons/${p.icon}`,
       iconSize: [36, 36],
       iconAnchor: [18, 18],
-      popupAnchor: [0, -18],
-      className: 'crest-icon'
+      popupAnchor: [0, -10],
+      className: 'mon-icon'
     });
   }
 
-  // --------- MAP ----------
-  const map = L.map('map', { preferCanvas: true }).setView([36.5, 137.7], 6);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  }).addTo(map);
-
+  // ---------- Data & Markers ----------
   const cluster = L.markerClusterGroup({
-    spiderfyOnMaxZoom: true,
-    showCoverageOnHover: false,
-    maxClusterRadius: 45
+    chunkedLoading: true,
+    maxClusterRadius: 50
   });
-  map.addLayer(cluster);
 
-  // --------- LOAD + RENDER ----------
-  fetch(GEOJSON_URL + '?v=man-koku-safe')
+  fetch(GEOJSON_URL)
     .then(r => r.json())
-    .then(geojson => {
-      L.geoJSON(geojson, {
-        pointToLayer: (feat, latlng) => {
-          const props = feat.properties || {};
-          const icon  = makeIcon(props);
-          const marker = icon ? L.marker(latlng, { icon }) : L.marker(latlng);
-          marker.bindPopup(popupHTML(props));
-          return marker;
-        }
-      }).eachLayer(layer => cluster.addLayer(layer));
-
-      try {
-        const b = cluster.getBounds();
-        if (b.isValid()) map.fitBounds(b.pad(0.1));
-      } catch {}
+    .then(geo => {
+      geo.features.forEach(f => {
+        const p = f.properties || {};
+        // build marker
+        const m = L.marker([f.geometry.coordinates[1], f.geometry.coordinates[0]], {
+          icon: p.icon ? monIcon(p) : undefined
+        });
+        m.bindPopup(popupHTML(p));
+        cluster.addLayer(m);
+      });
+      map.addLayer(cluster);
     })
-    .catch(err => console.error('Failed to load GeoJSON:', err));
+    .catch(err => console.error('Failed to load GeoJSON', err));
 })();

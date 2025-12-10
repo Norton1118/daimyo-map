@@ -1,14 +1,18 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta charset="utf-8" />
   <title>Daimyo Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
+  <link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" rel="stylesheet">
+  <link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" rel="stylesheet">
   <style>
     html, body, #map { height: 100%; margin: 0; }
-    .leaflet-popup-content { font: 14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    .leaflet-popup-content { margin: 10px 12px; }
+    .btn-min {
+      font: 12px/1.2 system-ui, sans-serif; padding: 2px 8px; border: 1px solid #ddd; border-radius: 4px; background:#f6f6f6; cursor:pointer;
+    }
   </style>
 </head>
 <body>
@@ -16,6 +20,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="js/app.js?v=man-koku-safe"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
