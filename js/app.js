@@ -1,64 +1,86 @@
-﻿// Helper: unified popup builder used across both maps
-function buildPopupHTML(p) {
-  // Title priority: Han Name (C), else Country/B
-  const title = (p["Han Name"] && p["Han Name"].trim()) ? p["Han Name"] : p["Country (region group)"];
-  const notes = p["Shogunate Land, Branch Han, Notes"]; // F column
-  const prefect = p["Current Prefecture"];
-  const daimyo = p["Daimyo"];
-  const stipend = p["Stipend"]; // numeric or string
-  const wiki = p["wiki"];
+﻿// Main (clustered) map
+const map = L.map('map', { zoomControl: true }).setView([38.0, 139.0], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OSM'
+}).addTo(map);
 
-  // icon path (URL-encoded so spaces work)
-  let iconPath = p.icon || p["icon"];
-  if (iconPath) iconPath = encodeURI(iconPath);          // handles spaces
-  if (iconPath && !/^https?:/.test(iconPath)) {
-    // ensure local relative path looks like "img/xxx.png"
-    iconPath = encodeURI(iconPath.startsWith("img/") ? iconPath : `img/${iconPath}`);
-  }
+const cluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 45 });
+map.addLayer(cluster);
 
-  const parts = [];
-  if (iconPath) {
-    parts.push(`<div class="popup-icon-wrap"><img class="popup-icon" src="${iconPath}" alt="" /></div>`);
+// Build a safe icon element for each point
+function markerIcon(filename) {
+  // If filename missing, use a blank square
+  if (!filename) {
+    return L.divIcon({ className: 'mon-icon', html: '' });
   }
-  parts.push(`<div class="popup-title">${title || ""}</div>`);
-  if (notes) parts.push(`<div class="popup-line">${notes}</div>`);
-  if (prefect) parts.push(`<div class="popup-line">${prefect}</div>`);
-  if (daimyo) parts.push(`<div class="popup-line">Daimyo: ${daimyo}</div>`);
-  if (stipend != null && `${stipend}`.trim() !== "") {
-    parts.push(`<div class="popup-line">Stipend: ${stipend} (Man-koku)</div>`);
-  }
-  if (wiki) {
-    parts.push(`<div class="popup-line" style="margin-top:4px;"><a href="${wiki}" target="_blank" rel="noopener">Wikipedia</a></div>`);
-  }
-  return parts.join("");
+  // Important: encode to survive spaces & non-ASCII
+  const safe = encodeURIComponent(String(filename).trim());
+  const url = `img/mon/${safe}`;
+  return L.divIcon({
+    className: 'mon-icon',
+    html: `<img src="${url}" alt="">`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -12]
+  });
 }
 
-(function () {
-  const map = L.map('map').setView([38.5, 137.5], 6);
+function popupHTML(p) {
+  // Title fallback priority
+  const title =
+    p.han_name?.trim() ||
+    p.name?.trim() ||
+    p.country?.trim() ||
+    p.current_prefecture?.trim() ||
+    '—';
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  // stipend string with unit
+  let stipend = '';
+  const val = p.stipend ?? p.koku ?? p['Stipend'];
+  if (val !== undefined && val !== null && String(val).trim() !== '') {
+    stipend = `<div>Stipend: ${val} <span style="opacity:.8">(Man-koku)</span></div>`;
+  }
 
-  const cluster = L.markerClusterGroup();
+  // notes from F column
+  const notes = p.notes || p['Shogunate Land, Branch Han, Notes'] || '';
+  const notesLine = notes ? `<div>${notes}</div>` : '';
 
-  fetch('data/daimyo_domains.geojson?v=mk=5')
-    .then(r => r.json())
-    .then(geojson => {
-      const layer = L.geoJSON(geojson, {
-        pointToLayer: (feature, latlng) => {
-          const p = feature.properties || {};
-          // use a small round marker; the icon image shows inside popup
-          return L.marker(latlng);
-        },
-        onEachFeature: (feature, layer) => {
-          layer.bindPopup(buildPopupHTML(feature.properties || {}));
-        }
-      });
-      cluster.addLayer(layer);
-      map.addLayer(cluster);
-    })
-    .catch(err => {
-      console.error('Failed to load map:', err);
-    });
+  const daimyoline = p.daimyo ? `<div>Daimyo: ${p.daimyo}</div>` : '';
+
+  const wiki = p.wikipedia ? `<div style="margin-top:4px;"><a href="${p.wikipedia}" target="_blank" rel="noopener">Wikipedia</a></div>` : '';
+
+  // icon block in popup
+  const iconBlock = p.icon ? `<div class="popup-icon"><img src="img/mon/${encodeURIComponent(p.icon)}" alt=""></div>` : '';
+
+  return `
+    <div style="min-width:180px">
+      <div style="display:flex; gap:8px; align-items:center;">
+        ${iconBlock}
+        <div style="font-weight:600">${title}</div>
+      </div>
+      ${p.current_prefecture ? `<div>${p.current_prefecture}</div>` : ''}
+      ${daimyoline}
+      ${stipend}
+      ${notesLine}
+      ${wiki}
+    </div>
+  `;
+}
+
+// Load GeoJSON
+(async function load() {
+  const res = await fetch(`data/daimyo_domains.geojson?cache=${Date.now()}`);
+  if (!res.ok) {
+    console.error('GeoJSON load failed', res.status, await res.text());
+    return;
+  }
+  const gj = await res.json();
+
+  gj.features.forEach(f => {
+    const p = f.properties || {};
+    const [lon, lat] = f.geometry.coordinates;
+    const m = L.marker([lat, lon], { icon: markerIcon(p.icon) });
+    m.bindPopup(popupHTML(p));
+    cluster.addLayer(m);
+  });
 })();
