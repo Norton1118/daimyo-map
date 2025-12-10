@@ -1,4 +1,8 @@
-﻿/* Region filter map (no clustering) */
+﻿// top of the file
+const DATA_FILE = 'data/daimyo_domains.geojson?v=' + Date.now();
+
+
+/* Region filter map (no clustering) */
 (function () {
   const DATA_FILE = 'daimyo_domains_with_man_koku.geojson'; // must match the real file
   const DATA_URL  = `data/${DATA_FILE}?v=${Date.now()}`;

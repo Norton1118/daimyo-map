@@ -1,4 +1,8 @@
-﻿/* Main map with clustering */
+﻿// top of the file
+const DATA_FILE = 'data/daimyo_domains.geojson?v=' + Date.now();
+
+
+/* Main map with clustering */
 (function () {
   // ---- settings ------------------------------------------------------------
   // Use the ONE name that actually exists in /data on GitHub (case-sensitive).
