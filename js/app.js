@@ -1,66 +1,59 @@
-﻿/* js/app.js — stipend unit + shared popup */
+﻿/* js/app.js — unified popup, resilient stipend key */
 (function () {
-  // ---------- CONFIG ----------
-  const GEOJSON_URL = 'data/daimyo_domains.geojson';
+  // --------- CONFIG ----------
+  const GEOJSON_URL = 'data/daimyo_domains.geojson'; // or with_man_koku; both work
   const ICON_BASE   = 'imgs/';
 
-  // If your sheet/GeoJSON uses different keys, map them here:
+  // If your GeoJSON uses different keys, map them here
   const FIELD = {
-    name:      'name',
-    prefect:   'prefecture',
-    daimyo:    'daimyo',
-    stipend:   'stipend',        // <- we’ll format this with a unit
-    icon:      'icon',
-    wikiRaw:   'wikipedia',
-    wikiUrl:   'wikipedia_url',
-    notes:     'notes'           // (for the other request you had)
+    name:    'name',
+    prefect: 'prefecture',
+    daimyo:  'daimyo',
+    icon:    'icon',
+    wiki:    'wikipedia',
+    wikiUrl: 'wikipedia_url'
   };
 
-  // ---------- HELPERS ----------
+  // --------- HELPERS ----------
+  function getStipend(props) {
+    // Accept either "stipend (Man Koku)" or "stipend"
+    const raw = props['stipend (Man Koku)'] ?? props['stipend'];
+    if (raw == null || raw === '') return null;
+
+    // Coerce to number when possible (allow strings like "28")
+    const n = Number(String(raw).replace(/[^\d.-]/g, ''));
+    if (Number.isFinite(n)) {
+      return `${n} man-koku`;
+    }
+    // Fallback: show whatever text was provided
+    return String(raw);
+  }
+
   function buildWikiURL(props) {
     const explicit = props[FIELD.wikiUrl];
     if (typeof explicit === 'string' && /^https?:\/\//i.test(explicit)) return explicit;
-
-    const raw = props[FIELD.wikiRaw];
+    const raw = props[FIELD.wiki];
     if (!raw) return null;
     if (/^https?:\/\//i.test(raw)) return raw;
-
     const title = String(raw).replace(/\s*-\s*Wikipedia/i, '').trim();
     return 'https://en.wikipedia.org/wiki/' + encodeURIComponent(title.replace(/\s+/g, '_'));
   }
 
-  // NEW: consistent stipend formatter (adds unit; robust to existing text)
-  function formatStipend(v) {
-    if (v == null || v === '') return '';
-    const s = String(v).trim();
-    // If it already contains a unit, leave it as-is
-    if (/[万]|man|koku/i.test(s)) return s;
-    // If it looks numeric, append “man-koku”
-    const n = Number(s);
-    return Number.isFinite(n) ? `${s} man-koku` : s;
-  }
-
-  // ONE popup used by both maps
   function popupHTML(props) {
     const name    = props[FIELD.name]    || '(unknown)';
     const prefect = props[FIELD.prefect] || '';
     const daimyo  = props[FIELD.daimyo]  || '';
-    const stipend = formatStipend(props[FIELD.stipend]);
+    const stipend = getStipend(props);
     const wiki    = buildWikiURL(props);
     const icon    = props[FIELD.icon] ? `${ICON_BASE}${props[FIELD.icon]}` : null;
 
-    const iconImg = icon
-      ? `<img src="${icon}" alt="" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;border-radius:4px;">`
-      : '';
-
+    const iconImg = icon ? `<img src="${icon}" alt="" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;border-radius:4px;">` : '';
     const lines = [];
     if (prefect) lines.push(`${prefect}`);
     if (daimyo)  lines.push(`Daimyo: ${daimyo}`);
     if (stipend) lines.push(`Stipend: ${stipend}`);
 
-    const wikiLine = wiki
-      ? `<div style="margin-top:6px;"><a href="${wiki}" target="_blank" rel="noopener">Wikipedia</a></div>`
-      : '';
+    const wikiLine = wiki ? `<div style="margin-top:6px;"><a href="${wiki}" target="_blank" rel="noopener">Wikipedia</a></div>` : '';
 
     return `
       <div style="min-width:220px">
@@ -85,7 +78,7 @@
     });
   }
 
-  // ---------- MAP ----------
+  // --------- MAP ----------
   const map = L.map('map', { preferCanvas: true }).setView([36.5, 137.7], 6);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -100,8 +93,8 @@
   });
   map.addLayer(cluster);
 
-  // ---------- LOAD + RENDER ----------
-  fetch(GEOJSON_URL)
+  // --------- LOAD + RENDER ----------
+  fetch(GEOJSON_URL + '?v=man-koku-safe')
     .then(r => r.json())
     .then(geojson => {
       L.geoJSON(geojson, {
