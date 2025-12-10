@@ -3,123 +3,42 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Daimyo Map – Region filters</title>
+  <title>Daimyo Map — Region filters</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     html, body, #map { height: 100%; margin: 0; }
-    .panel {
-      position: absolute; left: 10px; top: 10px; z-index: 1000;
-      background:#fff; padding:10px 12px; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.12);
-      font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    .panel{
+      position:absolute; top:12px; left:12px; z-index:1000;
+      background:#fff; padding:10px; border-radius:10px;
+      box-shadow:0 8px 20px rgba(0,0,0,.12);
+      font:14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    .panel label { display:flex; align-items:center; gap:.5rem; margin:.25rem 0; }
-    .mon-icon { width: 24px; height:24px; border-radius: 6px; border: 2px solid rgba(0,0,0,.35); background:#fff;
-      display:flex; align-items:center; justify-content:center; overflow:hidden; }
-    .mon-icon img { width:100%; height:100%; object-fit:cover; }
+    .panel h4{ margin:0 0 8px 0; font-size:14px; }
+    .panel label{ display:block; margin:4px 0; cursor:pointer; }
+    .panel button{ margin-right:8px; }
+    .popup-icon{
+      width:28px; height:28px; border:2px solid rgba(0,0,0,.25);
+      border-radius:4px; box-sizing:border-box; display:inline-block; margin-right:8px;
+      vertical-align:middle; background:#fff;
+    }
+    .popup-title{ font-weight:600; margin-top:4px; }
+    .popup-row{ margin:2px 0; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-
   <div class="panel" id="regionPanel">
-    <div style="font-weight:600; margin-bottom:6px;">Regions</div>
-    <div style="display:flex; gap:.5rem; margin-bottom:6px;">
-      <button id="selectAll">Select all</button>
-      <button id="clearAll">Clear</button>
+    <h4>Regions</h4>
+    <div id="regionChecks"></div>
+    <div style="margin-top:6px;">
+      <button id="btnAll">Select all</button>
+      <button id="btnClear">Clear</button>
     </div>
-    <!-- checkboxes will be created by JS -->
   </div>
 
-  <script>
-    const BASE = location.pathname.includes('/daimyo-map/')
-      ? '/daimyo-map/' : (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/[^/]+$/, ''));
-    const DATA_URL = BASE + 'data/daimyo_domains.geojson';
-    const IMG_BASE = BASE + 'img/';
-
-    const map = L.map('map', { zoomSnap: 0.25 }).setView([37.5, 137.5], 5.2);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
-
-    // region -> Leaflet layer group
-    const groups = new Map();   // region => L.LayerGroup()
-    const ALL_REGIONS = [
-      'Ezo-Tohoku','Kantō','Kōshin’etsu','Tōkai','Kinki','Chūgoku','Shikoku','Kyūshū'
-    ];
-
-    function fixPopupImgPaths(html){ return html.replace(/src="img\//g, `src="${IMG_BASE}`); }
-
-    function markerFromFeature(feature, latlng) {
-      const iconPath = (feature.properties && feature.properties.icon)
-        ? feature.properties.icon
-        : `img/${feature.properties?.id || feature.id}.png`;
-      const html = `<div class="mon-icon"><img alt="" src="${iconPath.replace(/^img\//, IMG_BASE)}"></div>`;
-      return L.marker(latlng, { icon: L.divIcon({ html, className:'', iconSize:[28,28], iconAnchor:[14,14] }) });
-    }
-
-    function ensureGroup(region){
-      if (!groups.has(region)) {
-        const g = L.layerGroup().addTo(map);
-        groups.set(region, g);
-      }
-      return groups.get(region);
-    }
-
-    async function load(){
-      try{
-        const r = await fetch(DATA_URL, { cache:'no-store' });
-        if(!r.ok) throw new Error(`GeoJSON fetch failed: ${r.status} ${r.statusText}`);
-        const gj = await r.json();
-
-        // Build layer groups by region
-        gj.features.forEach(f=>{
-          const region = f.properties?.region || f.properties?.Region || 'Unknown';
-          const g = ensureGroup(region);
-          const m = markerFromFeature(f, L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]));
-          const html = f.properties?.popup ? fixPopupImgPaths(f.properties.popup) : '';
-          if (html) m.bindPopup(html, { maxWidth: 320 });
-          m.addTo(g);
-        });
-
-        buildUI([...groups.keys()]);
-      }catch(e){
-        console.error(e);
-        alert('Could not load the daimyo GeoJSON on the region page.');
-      }
-    }
-
-    // UI
-    function buildUI(regions){
-      const panel = document.getElementById('regionPanel');
-      const container = document.createElement('div');
-      regions.sort((a,b)=>a.localeCompare(b,'en')).forEach(r=>{
-        const id = `r_${r.replace(/\W+/g,'_')}`;
-        const label = document.createElement('label');
-        label.innerHTML = `<input type="checkbox" id="${id}" checked> ${r}`;
-        label.querySelector('input').addEventListener('change', (ev)=>{
-          const g = groups.get(r); if (!g) return;
-          if (ev.target.checked) g.addTo(map); else map.removeLayer(g);
-        });
-        container.appendChild(label);
-      });
-      panel.appendChild(container);
-
-      document.getElementById('selectAll').onclick = ()=>{
-        container.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-          if(!cb.checked){ cb.checked = true; cb.dispatchEvent(new Event('change')); }
-        });
-      };
-      document.getElementById('clearAll').onclick = ()=>{
-        container.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-          if(cb.checked){ cb.checked = false; cb.dispatchEvent(new Event('change')); }
-        });
-      };
-    }
-
-    load();
-  </script>
+  <script src="js/app_region.js?v=mk-5"></script>
 </body>
 </html>

@@ -5,89 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Daimyo Map</title>
 
-  <!-- Leaflet (no integrity attr so browsers don't block it) -->
+  <!-- Leaflet (no integrity attributes to avoid browser blocking) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- MarkerCluster for the MAIN map only -->
+  <!-- MarkerCluster (main map only) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
   <style>
     html, body, #map { height: 100%; margin: 0; }
-    .popup-icon {
-      width: 28px; height: 28px; border-radius: 4px; border: 2px solid rgba(0,0,0,.25);
-      box-sizing: border-box;
+    .popup-icon{
+      width:28px; height:28px; border:2px solid rgba(0,0,0,.25);
+      border-radius:4px; box-sizing:border-box; display:inline-block; margin-right:8px;
+      vertical-align:middle; background:#fff;
     }
-    .mon-icon {
-      width: 32px; height: 32px; border-radius: 6px; border: 2px solid rgba(0,0,0,.35);
-      background:#fff; display:flex; align-items:center; justify-content:center;
-      overflow:hidden;
-    }
-    .mon-icon img { width:100%; height:100%; object-fit:cover; }
+    .popup-title{ font-weight:600; margin-top:4px; }
+    .popup-row{ margin:2px 0; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-
-  <script>
-    // --- path helpers (works on GitHub Pages or local file) ---
-    const BASE = location.pathname.includes('/daimyo-map/')
-      ? '/daimyo-map/'
-      : (location.pathname.endsWith('/') ? location.pathname : location.pathname.replace(/[^/]+$/, ''));
-    const DATA_URL = BASE + 'data/daimyo_domains.geojson';   // <- the file that exists
-    const IMG_BASE = BASE + 'img/';
-
-    // --- map ---
-    const map = L.map('map', { zoomSnap: 0.25 }).setView([37.5, 137.5], 5.2);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
-
-    // Cluster group
-    const cluster = L.markerClusterGroup({
-      showCoverageOnHover:false, spiderfyOnMaxZoom:true, maxClusterRadius: 42
-    }).addTo(map);
-
-    // Utility: upgrade img paths in popup HTML to include IMG_BASE
-    function fixPopupImgPaths(html) {
-      return html.replace(/src="img\//g, `src="${IMG_BASE}`);
-    }
-
-    // Create a marker with the crest icon
-    function markerFromFeature(feature, latlng) {
-      // Prefer the explicit icon path if present; otherwise fall back to "img/<id>.png"
-      const iconPath = (feature.properties && feature.properties.icon)
-        ? feature.properties.icon
-        : `img/${feature.properties?.id || feature.id}.png`;
-
-      const iconHtml = `<div class="mon-icon"><img alt="" src="${iconPath.replace(/^img\//, IMG_BASE)}"></div>`;
-      const icon = L.divIcon({ html: iconHtml, className: '', iconSize: [36,36], iconAnchor:[18,18] });
-      return L.marker(latlng, { icon });
-    }
-
-    async function load() {
-      try {
-        const r = await fetch(DATA_URL, { cache: 'no-store' });
-        if (!r.ok) throw new Error(`GeoJSON fetch failed: ${r.status} ${r.statusText} — check the filename in /data`);
-        const gj = await r.json();
-
-        const layer = L.geoJSON(gj, {
-          pointToLayer: markerFromFeature,
-          onEachFeature: (f, m) => {
-            const html = (f.properties && f.properties.popup) ? fixPopupImgPaths(f.properties.popup) : '';
-            if (html) m.bindPopup(html, { maxWidth: 320 });
-          }
-        });
-
-        cluster.addLayer(layer);
-      } catch (e) {
-        console.error(e);
-        alert('Could not load the daimyo GeoJSON. Open dev console for details.');
-      }
-    }
-    load();
-  </script>
+  <script src="js/app.js?v=mk-5"></script>
 </body>
 </html>

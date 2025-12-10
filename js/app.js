@@ -1,99 +1,95 @@
-﻿// top of the file
-const DATA_FILE = 'data/daimyo_domains.geojson?v=' + Date.now();
+﻿// === Main map with clustering ===
+const DATA_URL = 'data/daimyo_domains.geojson';  // <-- single source of truth
 
+const map = L.map('map', {
+  preferCanvas: true
+}).setView([37.5, 138], 5);
 
-/* Main map with clustering */
-(function () {
-  // ---- settings ------------------------------------------------------------
-  // Use the ONE name that actually exists in /data on GitHub (case-sensitive).
-  // If your file is daimyo_domains.geojson, change DATA_FILE below.
-  const DATA_FILE = 'daimyo_domains_with_man_koku.geojson'; // <-- make sure it exists
-  const DATA_URL  = `data/${DATA_FILE}?v=${Date.now()}`;
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap'
+}).addTo(map);
 
-  // icon base folder
-  const ICON_BASE = 'img/mon/';
+// marker cluster
+const clusters = L.markerClusterGroup({
+  disableClusteringAtZoom: 9,
+  spiderfyOnMaxZoom: true,
+  showCoverageOnHover: false
+});
+map.addLayer(clusters);
 
-  const map = L.map('map', { zoomControl: true })
-    .setView([38.3, 139.5], 5);
+// icon factory (reads props.icon; accepts filename or relative path)
+function crestIcon(props) {
+  let iconPath = props.icon || '';
+  if (iconPath && !iconPath.startsWith('img/')) {
+    iconPath = `img/mon/${iconPath}`;
+  }
+  // URL-encode spaces etc., but keep slashes
+  const url = iconPath ? encodeURI(iconPath) : null;
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+  return url ? L.icon({
+    iconUrl: url,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -10],
+    className: 'crest-icon'
+  }) : undefined;
+}
 
-  const clusters = L.markerClusterGroup({
-    disableClusteringAtZoom: 9,
-    spiderfyOnMaxZoom: true,
-  });
-  map.addLayer(clusters);
+// popup HTML (shared structure)
+function popupHTML(p) {
+  const parts = [];
+  const icon = p.icon ? (p.icon.startsWith('img/') ? p.icon : `img/mon/${p.icon}`) : null;
+  if (icon) {
+    parts.push(`<img class="popup-icon" src="${encodeURI(icon)}" alt="">`);
+  }
+  const title = p['Han Name'] || p.name || p.han || p.title || '—';
+  parts.push(`<span class="popup-title">${title}</span>`);
 
-  fetch(DATA_URL)
-    .then(r => {
-      if (!r.ok) throw new Error(`GeoJSON 404/Network: ${r.status}`);
-      return r.json();
-    })
-    .then(geo => {
-      const layer = L.geoJSON(geo, {
-        pointToLayer: (feature, latlng) => {
-          const p = feature.properties || {};
-          // icon filename is stored in the data (e.g., "2_aizu.png")
-          const iconFile = (p.icon || '').trim();
-          const iconUrl  = ICON_BASE + iconFile; // no extension guessing
-
-          const icon = L.icon({
-            iconUrl,
-            iconSize: [36, 36],
-            iconAnchor: [18, 18],
-            className: 'mon-icon'
-          });
-
-          const m = L.marker(latlng, { icon });
-
-          m.bindPopup(makePopupHTML(p), { maxWidth: 320 });
-          return m;
-        }
-      });
-
-      clusters.addLayer(layer);
-      map.fitBounds(layer.getBounds(), { padding: [20, 20] });
-    })
-    .catch(err => {
-      console.error('Failed to load map:', err);
-      alert('Could not load the map data. Check that /data/' + DATA_FILE + ' exists on GitHub (case-sensitive).');
-    });
-
-  function makePopupHTML(p) {
-    const name = p.name || p['Han Name'] || 'Unknown';
-    const pref = p.prefecture || p['Current Prefecture'] || '';
-    const dai  = p.daimyo || '';
-    const stipend = p['stipend (Man Koku)'] || p['stipend (Man-koku)'] || p['stipend'] || '';
-    const wk = p.wikipedia_url || p.wikipedia || '';
-
-    // F-column notes (Shogunate Land, Branch Han, Notes)
-    const notes = p.notes || p['Shogunate Land, Branch Han, Notes'] || '';
-
-    const iconFile = (p.icon || '').trim();
-    const iconUrl  = ICON_BASE + iconFile;
-
-    const stipendLine = stipend ? `<div>Stipend: ${stipend}</div>` : '';
-    const notesLine   = notes   ? `<div>${escapeHTML(notes)}</div>` : '';
-
-    return `
-      <div class="popup-title">
-        ${iconFile ? `<img src="${iconUrl}" alt="">` : ''}
-        <div>${escapeHTML(name)}</div>
-      </div>
-      ${pref ? `<div>${escapeHTML(pref)}</div>` : ''}
-      ${dai ? `<div>Daimyo: ${escapeHTML(dai)}</div>` : ''}
-      ${stipendLine}
-      ${notesLine}
-      ${wk ? `<div style="margin-top:6px"><a href="${wk}" target="_blank" rel="noopener">Wikipedia</a></div>` : ''}
-    `;
+  const rows = [];
+  if (p['Current Prefecture'] || p.prefecture) {
+    rows.push(`<div class="popup-row">${p['Current Prefecture'] || p.prefecture}</div>`);
+  } else if (p.notes) {
+    rows.push(`<div class="popup-row">${p.notes}</div>`);
   }
 
-  function escapeHTML(s) {
-    return String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-      .replace(/'/g,'&#39;');
+  if (p.Daimyo || p.daimyo) {
+    rows.push(`<div class="popup-row">Daimyo: ${p.Daimyo || p.daimyo}</div>`);
   }
-})();
+  if (p.Stipend || p.stipend) {
+    const val = p.Stipend || p.stipend;
+    rows.push(`<div class="popup-row">Stipend: ${val} (Man-koku)</div>`);
+  }
+  if (p['Shogunate Land, Branch Han, Notes']) {
+    rows.push(`<div class="popup-row">${p['Shogunate Land, Branch Han, Notes']}</div>`);
+  }
+  if (p.Wikipedia || p.wikipedia) {
+    const href = p.Wikipedia || p.wikipedia;
+    rows.push(
+      `<div class="popup-row" style="margin-top:4px;"><a href="${href}" target="_blank" rel="noopener">Wikipedia</a></div>`
+    );
+  }
+
+  return `<div>${parts.join('')}</div>${rows.join('')}`;
+}
+
+function pointToLayer(feature, latlng) {
+  const icon = crestIcon(feature.properties);
+  return icon ? L.marker(latlng, { icon }) : L.marker(latlng);
+}
+
+function onEachFeature(feature, layer) {
+  layer.bindPopup(popupHTML(feature.properties));
+}
+
+async function loadGeoJSON() {
+  const res = await fetch(`${DATA_URL}?t=${Date.now()}`); // cache-buster while iterating
+  if (!res.ok) {
+    console.error('GeoJSON fetch failed:', res.status, await res.text());
+    return;
+  }
+  const gj = await res.json();
+  const layer = L.geoJSON(gj, { pointToLayer, onEachFeature });
+  clusters.addLayer(layer);
+}
+
+loadGeoJSON();

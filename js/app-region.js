@@ -1,116 +1,94 @@
-﻿// top of the file
-const DATA_FILE = 'data/daimyo_domains.geojson?v=' + Date.now();
+﻿// === Region filter map (no clustering) ===
+const DATA_URL = 'data/daimyo_domains.geojson';
 
+const map = L.map('map', { preferCanvas: true }).setView([37.5, 138], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap'
+}).addTo(map);
 
-/* Region filter map (no clustering) */
-(function () {
-  const DATA_FILE = 'daimyo_domains_with_man_koku.geojson'; // must match the real file
-  const DATA_URL  = `data/${DATA_FILE}?v=${Date.now()}`;
-  const ICON_BASE = 'img/mon/';
-
-  const map = L.map('map').setView([36.7, 138.6], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
-
-  const allLayer = L.layerGroup().addTo(map);
-
-  fetch(DATA_URL)
-    .then(r => {
-      if (!r.ok) throw new Error(`GeoJSON 404/Network: ${r.status}`);
-      return r.json();
-    })
-    .then(geo => {
-      // Build markers but do NOT cluster
-      const LAYERS_BY_REGION = {};
-      const regions = [];
-
-      L.geoJSON(geo, {
-        pointToLayer: (feature, latlng) => {
-          const p = feature.properties || {};
-          const iconUrl = ICON_BASE + (p.icon || '').trim();
-          const icon = L.icon({ iconUrl, iconSize: [30, 30], iconAnchor:[15,15] });
-          const m = L.marker(latlng, { icon });
-          m.bindPopup(makePopupHTML(p), { maxWidth: 320 });
-
-          const r = p.region || p['Region'] || 'Unknown';
-          if (!LAYERS_BY_REGION[r]) {
-            LAYERS_BY_REGION[r] = L.layerGroup();
-            regions.push(r);
-          }
-          LAYERS_BY_REGION[r].addLayer(m);
-          return m;
-        }
-      }).addTo(allLayer);
-
-      // Panel checkboxes
-      const panel = document.getElementById('regionChecks');
-      regions.sort().forEach(r => {
-        const id = `r_${r.replace(/\W+/g,'_')}`;
-        const row = document.createElement('label');
-        row.innerHTML = `<input type="checkbox" id="${id}" checked> ${escapeHTML(r)}`;
-        panel.appendChild(row);
-
-        // start visible
-        map.addLayer(LAYERS_BY_REGION[r]);
-
-        row.querySelector('input').addEventListener('change', (ev) => {
-          if (ev.target.checked) map.addLayer(LAYERS_BY_REGION[r]);
-          else map.removeLayer(LAYERS_BY_REGION[r]);
-        });
-      });
-
-      document.getElementById('selectAll').onclick = () => {
-        panel.querySelectorAll('input[type=checkbox]').forEach(chk => {
-          if (!chk.checked) chk.checked = true;
-          map.addLayer(LAYERS_BY_REGION[chk.nextSibling.textContent.trim()]);
-        });
-      };
-      document.getElementById('clearAll').onclick = () => {
-        panel.querySelectorAll('input[type=checkbox]').forEach(chk => {
-          if (chk.checked) chk.checked = false;
-          map.removeLayer(LAYERS_BY_REGION[chk.nextSibling.textContent.trim()]);
-        });
-      };
-
-      // Fit bounds to everything we loaded
-      const bounds = allLayer.getBounds();
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [20,20] });
-    })
-    .catch(err => {
-      console.error('Failed to load map:', err);
-      alert('Could not load the map data. Check that /data/' + DATA_FILE + ' exists on GitHub (case-sensitive).');
-    });
-
-  function makePopupHTML(p) {
-    const name = p.name || p['Han Name'] || 'Unknown';
-    const pref = p.prefecture || p['Current Prefecture'] || '';
-    const dai  = p.daimyo || '';
-    const stipend = p['stipend (Man Koku)'] || p['stipend (Man-koku)'] || p['stipend'] || '';
-    const notes = p.notes || p['Shogunate Land, Branch Han, Notes'] || '';
-    const wk = p.wikipedia_url || p.wikipedia || '';
-
-    const iconUrl = ICON_BASE + (p.icon || '').trim();
-    const stipendLine = stipend ? `<div>Stipend: ${stipend}</div>` : '';
-    const notesLine   = notes   ? `<div>${escapeHTML(notes)}</div>` : '';
-
-    return `
-      <div class="popup-title">
-        ${p.icon ? `<img src="${iconUrl}" alt="">` : ''}
-        <div>${escapeHTML(name)}</div>
-      </div>
-      ${pref ? `<div>${escapeHTML(pref)}</div>` : ''}
-      ${dai ? `<div>Daimyo: ${escapeHTML(dai)}</div>` : ''}
-      ${stipendLine}
-      ${notesLine}
-      ${wk ? `<div style="margin-top:6px"><a href="${wk}" target="_blank" rel="noopener">Wikipedia</a></div>` : ''}
-    `;
+// Shared helpers
+function crestIcon(props) {
+  let iconPath = props.icon || '';
+  if (iconPath && !iconPath.startsWith('img/')) {
+    iconPath = `img/mon/${iconPath}`;
   }
+  const url = iconPath ? encodeURI(iconPath) : null;
+  return url ? L.icon({ iconUrl: url, iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -10] }) : undefined;
+}
+function popupHTML(p) {
+  const parts = [];
+  const icon = p.icon ? (p.icon.startsWith('img/') ? p.icon : `img/mon/${p.icon}`) : null;
+  if (icon) parts.push(`<img class="popup-icon" src="${encodeURI(icon)}" alt="">`);
+  const title = p['Han Name'] || p.name || p.han || '—';
+  parts.push(`<span class="popup-title">${title}</span>`);
 
-  function escapeHTML(s) {
-    return String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-      .replace(/'/g,'&#39;');
+  const rows = [];
+  if (p['Current Prefecture'] || p.prefecture) rows.push(`<div class="popup-row">${p['Current Prefecture'] || p.prefecture}</div>`);
+  if (p.Daimyo || p.daimyo) rows.push(`<div class="popup-row">Daimyo: ${p.Daimyo || p.daimyo}</div>`);
+  if (p.Stipend || p.stipend) rows.push(`<div class="popup-row">Stipend: ${p.Stipend || p.stipend} (Man-koku)</div>`);
+  if (p['Shogunate Land, Branch Han, Notes']) rows.push(`<div class="popup-row">${p['Shogunate Land, Branch Han, Notes']}</div>`);
+  if (p.Wikipedia || p.wikipedia) rows.push(`<div class="popup-row" style="margin-top:4px;"><a href="${p.Wikipedia || p.wikipedia}" target="_blank" rel="noopener">Wikipedia</a></div>`);
+  return `<div>${parts.join('')}</div>${rows.join('')}`;
+}
+function pointToLayer(feature, latlng) {
+  const icon = crestIcon(feature.properties);
+  return icon ? L.marker(latlng, { icon }) : L.marker(latlng);
+}
+function onEachFeature(feature, layer) {
+  layer.bindPopup(popupHTML(feature.properties));
+}
+
+// Data + filtering
+let allLayer;        // the complete unfiltered layer
+let currentLayer;    // the currently visible layer
+let regions = [];    // unique list for UI
+
+async function loadData() {
+  const res = await fetch(`${DATA_URL}?t=${Date.now()}`);
+  if (!res.ok) {
+    console.error('GeoJSON fetch failed:', res.status, await res.text());
+    return;
   }
-})();
+  const gj = await res.json();
+
+  // Build region list from props.Region (or region)
+  const seen = new Set();
+  gj.features.forEach(f => {
+    const r = f.properties.Region || f.properties.region || null;
+    if (r && !seen.has(r)) { seen.add(r); regions.push(r); }
+  });
+  regions.sort();
+
+  // Build UI
+  const box = document.getElementById('regionChecks');
+  box.innerHTML = regions.map(r => {
+    const id = `r_${r.replace(/\s+/g,'_')}`;
+    return `<label><input type="checkbox" value="${r}" id="${id}" checked> ${r}</label>`;
+  }).join('');
+  document.getElementById('btnAll').onclick = () => { box.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = true); applyFilter(); };
+  document.getElementById('btnClear').onclick = () => { box.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false); applyFilter(); };
+  box.addEventListener('change', applyFilter);
+
+  // Create the full layer once (no clusters here)
+  allLayer = L.geoJSON(gj, { pointToLayer, onEachFeature });
+  applyFilter(); // initial render
+}
+
+function applyFilter() {
+  if (currentLayer) { map.removeLayer(currentLayer); currentLayer = null; }
+
+  const checked = new Set([...document.querySelectorAll('#regionChecks input[type=checkbox]:checked')].map(i => i.value));
+  if (checked.size === 0) { return; }
+
+  // Filter features by Region
+  const filtered = L.geoJSON(allLayer.toGeoJSON(), {
+    pointToLayer,
+    onEachFeature,
+    filter: f => checked.has(f.properties.Region || f.properties.region || '')
+  });
+
+  currentLayer = filtered;
+  currentLayer.addTo(map);
+}
+
+loadData();
