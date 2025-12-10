@@ -2,31 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Daimyo Map</title>
-
-  <!-- Leaflet (no integrity attributes to avoid browser blocking) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- MarkerCluster (main map only) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+    crossorigin=""
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+    crossorigin=""
+  />
   <style>
     html, body, #map { height: 100%; margin: 0; }
-    .popup-icon{
-      width:28px; height:28px; border:2px solid rgba(0,0,0,.25);
-      border-radius:4px; box-sizing:border-box; display:inline-block; margin-right:8px;
-      vertical-align:middle; background:#fff;
-    }
-    .popup-title{ font-weight:600; margin-top:4px; }
-    .popup-row{ margin:2px 0; }
+    .popup-icon { width:28px; height:28px; border-radius:4px; border:2px solid rgba(0,0,0,.25); box-sizing:border-box; }
+    .popup-title { font-weight:700; margin-bottom:4px; }
+    .popup-line { margin:2px 0; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <script src="js/app.js?v=mk-5"></script>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+  <script src="js/app.js?v=mk=5"></script>
 </body>
 </html>

@@ -1,94 +1,109 @@
-﻿// === Region filter map (no clustering) ===
-const DATA_URL = 'data/daimyo_domains.geojson';
+﻿function buildPopupHTML(p) {
+  const title = (p["Han Name"] && p["Han Name"].trim()) ? p["Han Name"] : p["Country (region group)"];
+  const notes = p["Shogunate Land, Branch Han, Notes"];
+  const prefect = p["Current Prefecture"];
+  const daimyo = p["Daimyo"];
+  const stipend = p["Stipend"];
+  const wiki = p["wiki"];
 
-const map = L.map('map', { preferCanvas: true }).setView([37.5, 138], 5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap'
-}).addTo(map);
-
-// Shared helpers
-function crestIcon(props) {
-  let iconPath = props.icon || '';
-  if (iconPath && !iconPath.startsWith('img/')) {
-    iconPath = `img/mon/${iconPath}`;
+  let iconPath = p.icon || p["icon"];
+  if (iconPath) iconPath = encodeURI(iconPath);
+  if (iconPath && !/^https?:/.test(iconPath)) {
+    iconPath = encodeURI(iconPath.startsWith("img/") ? iconPath : `img/${iconPath}`);
   }
-  const url = iconPath ? encodeURI(iconPath) : null;
-  return url ? L.icon({ iconUrl: url, iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -10] }) : undefined;
-}
-function popupHTML(p) {
+
   const parts = [];
-  const icon = p.icon ? (p.icon.startsWith('img/') ? p.icon : `img/mon/${p.icon}`) : null;
-  if (icon) parts.push(`<img class="popup-icon" src="${encodeURI(icon)}" alt="">`);
-  const title = p['Han Name'] || p.name || p.han || '—';
-  parts.push(`<span class="popup-title">${title}</span>`);
-
-  const rows = [];
-  if (p['Current Prefecture'] || p.prefecture) rows.push(`<div class="popup-row">${p['Current Prefecture'] || p.prefecture}</div>`);
-  if (p.Daimyo || p.daimyo) rows.push(`<div class="popup-row">Daimyo: ${p.Daimyo || p.daimyo}</div>`);
-  if (p.Stipend || p.stipend) rows.push(`<div class="popup-row">Stipend: ${p.Stipend || p.stipend} (Man-koku)</div>`);
-  if (p['Shogunate Land, Branch Han, Notes']) rows.push(`<div class="popup-row">${p['Shogunate Land, Branch Han, Notes']}</div>`);
-  if (p.Wikipedia || p.wikipedia) rows.push(`<div class="popup-row" style="margin-top:4px;"><a href="${p.Wikipedia || p.wikipedia}" target="_blank" rel="noopener">Wikipedia</a></div>`);
-  return `<div>${parts.join('')}</div>${rows.join('')}`;
-}
-function pointToLayer(feature, latlng) {
-  const icon = crestIcon(feature.properties);
-  return icon ? L.marker(latlng, { icon }) : L.marker(latlng);
-}
-function onEachFeature(feature, layer) {
-  layer.bindPopup(popupHTML(feature.properties));
+  if (iconPath) parts.push(`<div><img class="popup-icon" src="${iconPath}" alt="" /></div>`);
+  parts.push(`<div class="popup-title">${title || ""}</div>`);
+  if (notes) parts.push(`<div class="popup-line">${notes}</div>`);
+  if (prefect) parts.push(`<div class="popup-line">${prefect}</div>`);
+  if (daimyo) parts.push(`<div class="popup-line">Daimyo: ${daimyo}</div>`);
+  if (stipend != null && `${stipend}`.trim() !== "") parts.push(`<div class="popup-line">Stipend: ${stipend} (Man-koku)</div>`);
+  if (wiki) parts.push(`<div class="popup-line" style="margin-top:4px;"><a href="${wiki}" target="_blank" rel="noopener">Wikipedia</a></div>`);
+  return parts.join("");
 }
 
-// Data + filtering
-let allLayer;        // the complete unfiltered layer
-let currentLayer;    // the currently visible layer
-let regions = [];    // unique list for UI
+(function () {
+  const map = L.map('map').setView([38.5, 137.5], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
 
-async function loadData() {
-  const res = await fetch(`${DATA_URL}?t=${Date.now()}`);
-  if (!res.ok) {
-    console.error('GeoJSON fetch failed:', res.status, await res.text());
-    return;
+  // Layer buckets per Region (B/C fields in your sheet)
+  const regionKey = "Region"; // column name
+  const layersByRegion = {};   // { "Kantō": L.LayerGroup(), ... }
+  const layerControl = L.layerGroup().addTo(map);
+
+  // Build UI when we know distinct regions
+  function renderRegionPanel(regions) {
+    const panel = document.getElementById("regionPanel");
+    // remove old checkboxes
+    panel.querySelectorAll("label[data-r]").forEach(n => n.remove());
+
+    regions.sort().forEach(r => {
+      const id = `r_${r.replace(/[^\w]+/g, "_")}`;
+      const label = document.createElement("label");
+      label.setAttribute("data-r", r);
+      label.innerHTML = `<input type="checkbox" id="${id}" checked> ${r}`;
+      panel.appendChild(label);
+
+      document.getElementById(id).addEventListener("change", (e) => {
+        if (e.target.checked) {
+          map.addLayer(layersByRegion[r]);
+        } else {
+          map.removeLayer(layersByRegion[r]);
+        }
+      });
+    });
+
+    document.getElementById("selectAll").onclick = () => {
+      Object.keys(layersByRegion).forEach(r => {
+        map.addLayer(layersByRegion[r]);
+        panel.querySelector(`label[data-r="${r}"] input`).checked = true;
+      });
+    };
+    document.getElementById("clearAll").onclick = () => {
+      Object.keys(layersByRegion).forEach(r => {
+        map.removeLayer(layersByRegion[r]);
+        panel.querySelector(`label[data-r="${r}"] input`).checked = false;
+      });
+    };
   }
-  const gj = await res.json();
 
-  // Build region list from props.Region (or region)
-  const seen = new Set();
-  gj.features.forEach(f => {
-    const r = f.properties.Region || f.properties.region || null;
-    if (r && !seen.has(r)) { seen.add(r); regions.push(r); }
-  });
-  regions.sort();
+  fetch('data/daimyo_domains.geojson?v=mk=5')
+    .then(r => r.json())
+    .then(geojson => {
+      // create empty groups by region
+      const regions = new Set();
 
-  // Build UI
-  const box = document.getElementById('regionChecks');
-  box.innerHTML = regions.map(r => {
-    const id = `r_${r.replace(/\s+/g,'_')}`;
-    return `<label><input type="checkbox" value="${r}" id="${id}" checked> ${r}</label>`;
-  }).join('');
-  document.getElementById('btnAll').onclick = () => { box.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = true); applyFilter(); };
-  document.getElementById('btnClear').onclick = () => { box.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false); applyFilter(); };
-  box.addEventListener('change', applyFilter);
+      // pre-scan to create groups
+      (geojson.features || []).forEach(f => {
+        const p = f.properties || {};
+        const r = p[regionKey] || "Unknown";
+        regions.add(r);
+      });
 
-  // Create the full layer once (no clusters here)
-  allLayer = L.geoJSON(gj, { pointToLayer, onEachFeature });
-  applyFilter(); // initial render
-}
+      regions.forEach(r => { layersByRegion[r] = L.layerGroup(); });
 
-function applyFilter() {
-  if (currentLayer) { map.removeLayer(currentLayer); currentLayer = null; }
+      // build features
+      const featureLayer = L.geoJSON(geojson, {
+        pointToLayer: (feature, latlng) => L.marker(latlng),
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties || {};
+          layer.bindPopup(buildPopupHTML(p));
+          const r = p[regionKey] || "Unknown";
+          layersByRegion[r].addLayer(layer);
+        }
+      });
 
-  const checked = new Set([...document.querySelectorAll('#regionChecks input[type=checkbox]:checked')].map(i => i.value));
-  if (checked.size === 0) { return; }
+      // add all groups initially
+      Object.values(layersByRegion).forEach(g => map.addLayer(g));
+      renderRegionPanel([...regions]);
 
-  // Filter features by Region
-  const filtered = L.geoJSON(allLayer.toGeoJSON(), {
-    pointToLayer,
-    onEachFeature,
-    filter: f => checked.has(f.properties.Region || f.properties.region || '')
-  });
-
-  currentLayer = filtered;
-  currentLayer.addTo(map);
-}
-
-loadData();
+      // keep a reference (optional)
+      layerControl.addLayer(featureLayer);
+    })
+    .catch(err => {
+      console.error('Failed to load map (region):', err);
+    });
+})();

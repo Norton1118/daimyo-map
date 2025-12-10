@@ -1,95 +1,64 @@
-﻿// === Main map with clustering ===
-const DATA_URL = 'data/daimyo_domains.geojson';  // <-- single source of truth
+﻿// Helper: unified popup builder used across both maps
+function buildPopupHTML(p) {
+  // Title priority: Han Name (C), else Country/B
+  const title = (p["Han Name"] && p["Han Name"].trim()) ? p["Han Name"] : p["Country (region group)"];
+  const notes = p["Shogunate Land, Branch Han, Notes"]; // F column
+  const prefect = p["Current Prefecture"];
+  const daimyo = p["Daimyo"];
+  const stipend = p["Stipend"]; // numeric or string
+  const wiki = p["wiki"];
 
-const map = L.map('map', {
-  preferCanvas: true
-}).setView([37.5, 138], 5);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap'
-}).addTo(map);
-
-// marker cluster
-const clusters = L.markerClusterGroup({
-  disableClusteringAtZoom: 9,
-  spiderfyOnMaxZoom: true,
-  showCoverageOnHover: false
-});
-map.addLayer(clusters);
-
-// icon factory (reads props.icon; accepts filename or relative path)
-function crestIcon(props) {
-  let iconPath = props.icon || '';
-  if (iconPath && !iconPath.startsWith('img/')) {
-    iconPath = `img/mon/${iconPath}`;
+  // icon path (URL-encoded so spaces work)
+  let iconPath = p.icon || p["icon"];
+  if (iconPath) iconPath = encodeURI(iconPath);          // handles spaces
+  if (iconPath && !/^https?:/.test(iconPath)) {
+    // ensure local relative path looks like "img/xxx.png"
+    iconPath = encodeURI(iconPath.startsWith("img/") ? iconPath : `img/${iconPath}`);
   }
-  // URL-encode spaces etc., but keep slashes
-  const url = iconPath ? encodeURI(iconPath) : null;
 
-  return url ? L.icon({
-    iconUrl: url,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-    popupAnchor: [0, -10],
-    className: 'crest-icon'
-  }) : undefined;
-}
-
-// popup HTML (shared structure)
-function popupHTML(p) {
   const parts = [];
-  const icon = p.icon ? (p.icon.startsWith('img/') ? p.icon : `img/mon/${p.icon}`) : null;
-  if (icon) {
-    parts.push(`<img class="popup-icon" src="${encodeURI(icon)}" alt="">`);
+  if (iconPath) {
+    parts.push(`<div class="popup-icon-wrap"><img class="popup-icon" src="${iconPath}" alt="" /></div>`);
   }
-  const title = p['Han Name'] || p.name || p.han || p.title || '—';
-  parts.push(`<span class="popup-title">${title}</span>`);
-
-  const rows = [];
-  if (p['Current Prefecture'] || p.prefecture) {
-    rows.push(`<div class="popup-row">${p['Current Prefecture'] || p.prefecture}</div>`);
-  } else if (p.notes) {
-    rows.push(`<div class="popup-row">${p.notes}</div>`);
+  parts.push(`<div class="popup-title">${title || ""}</div>`);
+  if (notes) parts.push(`<div class="popup-line">${notes}</div>`);
+  if (prefect) parts.push(`<div class="popup-line">${prefect}</div>`);
+  if (daimyo) parts.push(`<div class="popup-line">Daimyo: ${daimyo}</div>`);
+  if (stipend != null && `${stipend}`.trim() !== "") {
+    parts.push(`<div class="popup-line">Stipend: ${stipend} (Man-koku)</div>`);
   }
-
-  if (p.Daimyo || p.daimyo) {
-    rows.push(`<div class="popup-row">Daimyo: ${p.Daimyo || p.daimyo}</div>`);
+  if (wiki) {
+    parts.push(`<div class="popup-line" style="margin-top:4px;"><a href="${wiki}" target="_blank" rel="noopener">Wikipedia</a></div>`);
   }
-  if (p.Stipend || p.stipend) {
-    const val = p.Stipend || p.stipend;
-    rows.push(`<div class="popup-row">Stipend: ${val} (Man-koku)</div>`);
-  }
-  if (p['Shogunate Land, Branch Han, Notes']) {
-    rows.push(`<div class="popup-row">${p['Shogunate Land, Branch Han, Notes']}</div>`);
-  }
-  if (p.Wikipedia || p.wikipedia) {
-    const href = p.Wikipedia || p.wikipedia;
-    rows.push(
-      `<div class="popup-row" style="margin-top:4px;"><a href="${href}" target="_blank" rel="noopener">Wikipedia</a></div>`
-    );
-  }
-
-  return `<div>${parts.join('')}</div>${rows.join('')}`;
+  return parts.join("");
 }
 
-function pointToLayer(feature, latlng) {
-  const icon = crestIcon(feature.properties);
-  return icon ? L.marker(latlng, { icon }) : L.marker(latlng);
-}
+(function () {
+  const map = L.map('map').setView([38.5, 137.5], 6);
 
-function onEachFeature(feature, layer) {
-  layer.bindPopup(popupHTML(feature.properties));
-}
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
 
-async function loadGeoJSON() {
-  const res = await fetch(`${DATA_URL}?t=${Date.now()}`); // cache-buster while iterating
-  if (!res.ok) {
-    console.error('GeoJSON fetch failed:', res.status, await res.text());
-    return;
-  }
-  const gj = await res.json();
-  const layer = L.geoJSON(gj, { pointToLayer, onEachFeature });
-  clusters.addLayer(layer);
-}
+  const cluster = L.markerClusterGroup();
 
-loadGeoJSON();
+  fetch('data/daimyo_domains.geojson?v=mk=5')
+    .then(r => r.json())
+    .then(geojson => {
+      const layer = L.geoJSON(geojson, {
+        pointToLayer: (feature, latlng) => {
+          const p = feature.properties || {};
+          // use a small round marker; the icon image shows inside popup
+          return L.marker(latlng);
+        },
+        onEachFeature: (feature, layer) => {
+          layer.bindPopup(buildPopupHTML(feature.properties || {}));
+        }
+      });
+      cluster.addLayer(layer);
+      map.addLayer(cluster);
+    })
+    .catch(err => {
+      console.error('Failed to load map:', err);
+    });
+})();
