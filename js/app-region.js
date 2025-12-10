@@ -1,86 +1,112 @@
-﻿const DATA_URL   = 'data/daimyo_domains_with_man_koku.geojson?v=mk3';
-const ICON_BASE  = 'img/';
-const FALLBACK   = '_fallback.png';
+﻿/* Region filter map (no clustering) */
+(function () {
+  const DATA_FILE = 'daimyo_domains_with_man_koku.geojson'; // must match the real file
+  const DATA_URL  = `data/${DATA_FILE}?v=${Date.now()}`;
+  const ICON_BASE = 'img/mon/';
 
-const map = L.map('map', { minZoom: 4 }).setView([37.5, 138.5], 6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19, attribution: '&copy; OpenStreetMap'
-}).addTo(map);
+  const map = L.map('map').setView([36.7, 138.6], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
 
-const regionsWanted = new Set();      // empty = show none until clicked
-const checksDiv = document.getElementById('regionChecks');
+  const allLayer = L.layerGroup().addTo(map);
 
-const monIcon = fn => L.icon({
-  iconUrl: ICON_BASE + (fn || FALLBACK),
-  iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-18]
-});
+  fetch(DATA_URL)
+    .then(r => {
+      if (!r.ok) throw new Error(`GeoJSON 404/Network: ${r.status}`);
+      return r.json();
+    })
+    .then(geo => {
+      // Build markers but do NOT cluster
+      const LAYERS_BY_REGION = {};
+      const regions = [];
 
-const val = (o,k,d='') => (o && o[k] != null && o[k] !== '') ? o[k] : d;
+      L.geoJSON(geo, {
+        pointToLayer: (feature, latlng) => {
+          const p = feature.properties || {};
+          const iconUrl = ICON_BASE + (p.icon || '').trim();
+          const icon = L.icon({ iconUrl, iconSize: [30, 30], iconAnchor:[15,15] });
+          const m = L.marker(latlng, { icon });
+          m.bindPopup(makePopupHTML(p), { maxWidth: 320 });
 
-function popupHTML(p) {
-  const name = val(p,'name');
-  const prefecture = val(p,'prefecture') || val(p,'Current Prefecture') || '';
-  const daimyo = val(p,'daimyo');
-  const stipend = val(p,'stipend (Man koku)') || val(p,'stipend') || '';
-  const notes = val(p,'Shogunate Land, Branch Han, Notes') || val(p,'notes') || '';
-  const wiki = val(p,'wikipedia_url');
-  return `
-    <div class="popup">
-      <div class="popup-title"><img src="${ICON_BASE + (p.icon || FALLBACK)}" onerror="this.src='${ICON_BASE + FALLBACK}'" />
-        <span>${L.Util.escapeHTML(name)}</span>
-      </div>
-      ${prefecture ? `<div>${L.Util.escapeHTML(prefecture)}</div>` : ''}
-      ${daimyo ? `<div>Daimyo: ${L.Util.escapeHTML(daimyo)}</div>` : ''}
-      ${stipend ? `<div>Stipend: ${stipend} (Man-koku)</div>` : ''}
-      ${notes ? `<div><em>${L.Util.escapeHTML(notes)}</em></div>` : ''}
-      ${wiki ? `<div><a href="${wiki}" target="_blank" rel="noopener">Wikipedia</a></div>` : ''}
-    </div>`;
-}
+          const r = p.region || p['Region'] || 'Unknown';
+          if (!LAYERS_BY_REGION[r]) {
+            LAYERS_BY_REGION[r] = L.layerGroup();
+            regions.push(r);
+          }
+          LAYERS_BY_REGION[r].addLayer(m);
+          return m;
+        }
+      }).addTo(allLayer);
 
-let allFeatures = [];     // keep raw features for filtering
-let markersLayer = L.layerGroup().addTo(map);
+      // Panel checkboxes
+      const panel = document.getElementById('regionChecks');
+      regions.sort().forEach(r => {
+        const id = `r_${r.replace(/\W+/g,'_')}`;
+        const row = document.createElement('label');
+        row.innerHTML = `<input type="checkbox" id="${id}" checked> ${escapeHTML(r)}`;
+        panel.appendChild(row);
 
-async function load() {
-  const r = await fetch(DATA_URL, {cache:'no-store'});
-  if (!r.ok) throw new Error('GeoJSON fetch failed – check data path/filename');
-  const gj = await r.json();
-  allFeatures = gj.features || [];
-  buildRegionUI(allFeatures);
-  // default: show all
-  regionsWanted.clear();
-  new Set(allFeatures.map(f => f.properties?.region)).forEach(r => regionsWanted.add(r));
-  redraw();
-}
-function buildRegionUI(features) {
-  const regions = [...new Set(features.map(f => f.properties?.region).filter(Boolean))].sort();
-  checksDiv.innerHTML = regions.map(r =>
-    `<label><input type="checkbox" value="${r}" checked> ${r}</label>`).join('');
-  checksDiv.querySelectorAll('input[type=checkbox]').forEach(cb => {
-    cb.addEventListener('change', () => {
-      if (cb.checked) regionsWanted.add(cb.value); else regionsWanted.delete(cb.value);
-      redraw();
+        // start visible
+        map.addLayer(LAYERS_BY_REGION[r]);
+
+        row.querySelector('input').addEventListener('change', (ev) => {
+          if (ev.target.checked) map.addLayer(LAYERS_BY_REGION[r]);
+          else map.removeLayer(LAYERS_BY_REGION[r]);
+        });
+      });
+
+      document.getElementById('selectAll').onclick = () => {
+        panel.querySelectorAll('input[type=checkbox]').forEach(chk => {
+          if (!chk.checked) chk.checked = true;
+          map.addLayer(LAYERS_BY_REGION[chk.nextSibling.textContent.trim()]);
+        });
+      };
+      document.getElementById('clearAll').onclick = () => {
+        panel.querySelectorAll('input[type=checkbox]').forEach(chk => {
+          if (chk.checked) chk.checked = false;
+          map.removeLayer(LAYERS_BY_REGION[chk.nextSibling.textContent.trim()]);
+        });
+      };
+
+      // Fit bounds to everything we loaded
+      const bounds = allLayer.getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [20,20] });
+    })
+    .catch(err => {
+      console.error('Failed to load map:', err);
+      alert('Could not load the map data. Check that /data/' + DATA_FILE + ' exists on GitHub (case-sensitive).');
     });
-  });
-  document.getElementById('btnAll').onclick = () => {
-    regions.forEach(r => regionsWanted.add(r));
-    checksDiv.querySelectorAll('input').forEach(cb => cb.checked = true);
-    redraw();
-  };
-  document.getElementById('btnNone').onclick = () => {
-    regionsWanted.clear();
-    checksDiv.querySelectorAll('input').forEach(cb => cb.checked = false);
-    redraw();
-  };
-}
 
-function redraw() {
-  markersLayer.clearLayers();
-  const filtered = allFeatures.filter(f => regionsWanted.has(f.properties?.region));
-  const layer = L.geoJSON({type:'FeatureCollection', features: filtered}, {
-    pointToLayer: (f, ll) => L.marker(ll, {icon: monIcon(f.properties?.icon)}).bindPopup(popupHTML(f.properties))
-  });
-  markersLayer.addLayer(layer);
-  if (filtered.length) map.fitBounds(layer.getBounds().pad(0.1));
-}
+  function makePopupHTML(p) {
+    const name = p.name || p['Han Name'] || 'Unknown';
+    const pref = p.prefecture || p['Current Prefecture'] || '';
+    const dai  = p.daimyo || '';
+    const stipend = p['stipend (Man Koku)'] || p['stipend (Man-koku)'] || p['stipend'] || '';
+    const notes = p.notes || p['Shogunate Land, Branch Han, Notes'] || '';
+    const wk = p.wikipedia_url || p.wikipedia || '';
 
-load().catch(err => { console.error(err); alert(err.message); });
+    const iconUrl = ICON_BASE + (p.icon || '').trim();
+    const stipendLine = stipend ? `<div>Stipend: ${stipend}</div>` : '';
+    const notesLine   = notes   ? `<div>${escapeHTML(notes)}</div>` : '';
+
+    return `
+      <div class="popup-title">
+        ${p.icon ? `<img src="${iconUrl}" alt="">` : ''}
+        <div>${escapeHTML(name)}</div>
+      </div>
+      ${pref ? `<div>${escapeHTML(pref)}</div>` : ''}
+      ${dai ? `<div>Daimyo: ${escapeHTML(dai)}</div>` : ''}
+      ${stipendLine}
+      ${notesLine}
+      ${wk ? `<div style="margin-top:6px"><a href="${wk}" target="_blank" rel="noopener">Wikipedia</a></div>` : ''}
+    `;
+  }
+
+  function escapeHTML(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+})();
