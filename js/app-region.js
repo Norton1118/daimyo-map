@@ -1,88 +1,109 @@
-﻿// --- CONFIG ---
-const DATA_URL  = 'data/daimyo_domains.geojson';
-const ICON_DIR  = 'imgs/';
-const PLACEHOLDER = ICON_DIR + '_placeholder.png';
+﻿// js/app-region.js
+(function () {
+  const map = L.map("map", { minZoom: 4, maxZoom: 18, worldCopyJump: true })
+    .setView([36.2048, 138.2529], 5);
 
-// --- MAP ---
-const map = L.map('map', { zoomControl: true });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap'
-}).addTo(map);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(map);
 
-// --- helpers (same as main) ---
-function iconUrl(name) { return name ? ICON_DIR + String(name) : PLACEHOLDER; }
-function fmtStipend(v) {
-  if (v === null || v === undefined || v === '') return '—';
-  const n = Number(v);
-  return Number.isFinite(n) ? `${n} 万石` : '—';
-}
-function popupHtml(p) {
-  const crest = `<img src="${iconUrl(p.icon)}" onerror="this.onerror=null;this.src='${PLACEHOLDER}'" 
-                   alt="" width="28" height="28" style="border:1px solid rgba(0,0,0,.25);border-radius:4px;box-sizing:border-box;">`;
-  const lines = [];
-  lines.push(`<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">
-                ${crest}<b>${p.name ?? p.notes ?? ''}</b>
-              </div>`);
-  if (p.country)    lines.push(`${p.country}`);
-  if (p.prefecture) lines.push(`${p.prefecture}`);
-  if (p.daimyo)     lines.push(`Daimyo: ${p.daimyo}`);
-  if (p.notes && (p.stipend === null || p.stipend === undefined || p.stipend === '')) {
-    lines.push(`<i>${p.notes}</i>`);
-  } else {
-    lines.push(`Stipend: ${fmtStipend(p.stipend)}`);
+  function showMapError(message, err) {
+    console.error(message, err);
+    const div = document.createElement("div");
+    div.textContent = message;
+    div.style.cssText =
+      "position:absolute;z-index:9999;top:12px;left:12px;right:12px;padding:10px 12px;" +
+      "border-radius:10px;background:rgba(220,38,38,.95);color:#fff;font:600 14px/1.3 system-ui";
+    map.getContainer().appendChild(div);
   }
-  if (p.wikipedia_url)
-    lines.push(`<a href="${p.wikipedia_url}" target="_blank" rel="noopener">Wikipedia</a>`);
-  return `<div style="line-height:1.25">${lines.join('<br>')}</div>`;
-}
 
-// --- region UI ---
-const regions = ["Chūgoku","Ezo-Tohoku","Kantō","Kinki","Kyūshū","Kōshin'etsu","Shikoku","Tōkai"];
-const panel = document.getElementById('regionPanel');
-panel.innerHTML = `<div class="panel"><b>Regions</b>
-  <div><button id="selAll">Select all</button> <button id="clrAll">Clear</button></div>
-  ${regions.map(r => `<label style="display:block"><input type="checkbox" class="rchk" value="${r}" checked> ${r}</label>`).join('')}
-</div>`;
+  const REGIONS = ["Ezo-Tohoku","Kantō","Kōshin’etsu","Tōkai","Kinki","Chūgoku","Shikoku","Kyūshū"];
 
-const checks = [...panel.querySelectorAll('.rchk')];
-panel.querySelector('#selAll').onclick = () => checks.forEach(c => { c.checked = true; update(); });
-panel.querySelector('#clrAll').onclick = () => checks.forEach(c => { c.checked = false; update(); });
+  const regionLayers = Object.fromEntries(REGIONS.map((r) => [r, L.layerGroup()]));
 
-// --- feature layer (plain markers) ---
-let allFeatures = [];
-let layerGroup = L.layerGroup().addTo(map);
+  // Leaflet control (no dependency on regionChecks div => no null innerHTML crashes)
+  const control = L.control({ position: "topleft" });
+  control.onAdd = () => {
+    const el = L.DomUtil.create("div", "panel");
+    el.style.cssText =
+      "background:#fff;padding:10px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);" +
+      "font:14px/1.3 system-ui; max-width:220px;";
+    el.innerHTML = `
+      <div style="font-weight:700;margin-bottom:8px;">Regions</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button type="button" id="selAll">Select all</button>
+        <button type="button" id="clrAll">Clear</button>
+      </div>
+      <div id="checks" style="display:grid;gap:6px;"></div>
+    `;
 
-function makeMarker(f) {
-  return L.marker([f.geometry.coordinates[1], f.geometry.coordinates[0]], {
-    icon: L.divIcon({
-      className: 'crest-pin',
-      html: `<div style="width:28px;height:28px;border-radius:6px;overflow:hidden;background:#fff;border:1px solid rgba(0,0,0,.3);box-shadow:0 1px 2px rgba(0,0,0,.2)">
-               <img src="${iconUrl(f.properties.icon)}" onerror="this.onerror=null;this.src='${PLACEHOLDER}'"
-                    width="28" height="28" alt="">
-             </div>`,
-      iconSize: [28,28],
-      iconAnchor: [14,28],
-      popupAnchor: [0,-28]
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
+
+    const checks = el.querySelector("#checks");
+    for (const r of REGIONS) {
+      const row = document.createElement("label");
+      row.style.cssText = "display:flex;align-items:center;gap:8px;";
+      row.innerHTML = `<input type="checkbox" data-region="${r}" checked> ${r}`;
+      checks.appendChild(row);
+    }
+
+    const boxes = () => Array.from(checks.querySelectorAll("input[type=checkbox]"));
+
+    function apply() {
+      for (const b of boxes()) {
+        const r = b.getAttribute("data-region");
+        if (!r) continue;
+        if (b.checked) map.addLayer(regionLayers[r]);
+        else map.removeLayer(regionLayers[r]);
+      }
+    }
+
+    el.querySelector("#selAll").onclick = () => { boxes().forEach(b => b.checked = true); apply(); };
+    el.querySelector("#clrAll").onclick = () => { boxes().forEach(b => b.checked = false); apply(); };
+    checks.addEventListener("change", apply);
+
+    // default: all selected
+    apply();
+    return el;
+  };
+  control.addTo(map);
+
+  const dataUrl = new URL(
+    `data/daimyo_domains.geojson?v=${encodeURIComponent(DaimyoPopup.BUILD)}`,
+    document.baseURI
+  ).toString();
+
+  fetch(dataUrl, { cache: "no-store" })
+    .then((r) => {
+      if (!r.ok) throw new Error(`GeoJSON fetch failed: ${r.status} ${r.statusText}`);
+      return r.json();
     })
-  }).bindPopup(popupHtml(f.properties));
-}
+    .then((geo) => {
+      const pts = [];
 
-function update() {
-  const allowed = new Set(checks.filter(c => c.checked).map(c => c.value));
-  layerGroup.clearLayers();
-  const filtered = allFeatures.filter(f => allowed.has(f.properties.region));
-  filtered.forEach(f => makeMarker(f).addTo(layerGroup));
-  if (filtered.length) {
-    const bounds = L.geoJSON({type:'FeatureCollection',features:filtered}).getBounds();
-    map.fitBounds(bounds, { padding: [20,20] });
-  }
-}
+      for (const feat of (geo.features || [])) {
+        const p = feat.properties || {};
+        const region = String(p.region || "").trim();
+        const coords = feat.geometry?.coordinates;
+        const lng = coords?.[0], lat = coords?.[1];
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
-// --- load data, render ---
-fetch(DATA_URL)
-  .then(r => r.json())
-  .then(geo => {
-    allFeatures = geo.features;
-    update();
-  })
-  .catch(err => console.error('Failed to load GeoJSON:', err));
+        const m = L.marker([lat, lng], { icon: DaimyoPopup.crestDivIcon(p, 28) })
+          .bindPopup(DaimyoPopup.buildPopupHtml(p), { maxWidth: 320 });
+
+        if (regionLayers[region]) regionLayers[region].addLayer(m);
+        pts.push([lat, lng]);
+      }
+
+      // ensure default visible layers (all checked)
+      for (const r of REGIONS) map.addLayer(regionLayers[r]);
+
+      if (pts.length) {
+        const b = L.latLngBounds(pts);
+        if (b.isValid()) map.fitBounds(b.pad(0.08));
+      }
+    })
+    .catch((err) => showMapError("Failed to load daimyo data (see console).", err));
+})();
