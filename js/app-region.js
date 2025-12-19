@@ -1,11 +1,11 @@
 ﻿// js/app-region.js
 (function () {
-  const map = L.map("map", { minZoom: 4, maxZoom: 18, worldCopyJump: true })
+  const map = L.map("map", { zoomControl: true, minZoom: 4, maxZoom: 18, worldCopyJump: true })
     .setView([36.2048, 138.2529], 5);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
     attribution: "&copy; OpenStreetMap contributors",
+    maxZoom: 19,
   }).addTo(map);
 
   function showMapError(message, err) {
@@ -18,17 +18,22 @@
     map.getContainer().appendChild(div);
   }
 
-  const REGIONS = ["Ezo-Tohoku","Kantō","Kōshin’etsu","Tōkai","Kinki","Chūgoku","Shikoku","Kyūshū"];
+  if (!window.DaimyoPopup) {
+    showMapError("popup.js did not load (DaimyoPopup missing). Check script order.", null);
+    return;
+  }
 
+  const REGIONS = ["Ezo-Tohoku","Kantō","Kōshin’etsu","Tōkai","Kinki","Chūgoku","Shikoku","Kyūshū"];
   const regionLayers = Object.fromEntries(REGIONS.map((r) => [r, L.layerGroup()]));
 
-  // Leaflet control (no dependency on regionChecks div => no null innerHTML crashes)
+  // Leaflet control panel (no regionPanel div needed)
   const control = L.control({ position: "topleft" });
   control.onAdd = () => {
-    const el = L.DomUtil.create("div", "panel");
+    const el = L.DomUtil.create("div");
     el.style.cssText =
       "background:#fff;padding:10px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);" +
       "font:14px/1.3 system-ui; max-width:220px;";
+
     el.innerHTML = `
       <div style="font-weight:700;margin-bottom:8px;">Regions</div>
       <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -64,7 +69,6 @@
     el.querySelector("#clrAll").onclick = () => { boxes().forEach(b => b.checked = false); apply(); };
     checks.addEventListener("change", apply);
 
-    // default: all selected
     apply();
     return el;
   };
@@ -97,7 +101,7 @@
         pts.push([lat, lng]);
       }
 
-      // ensure default visible layers (all checked)
+      // default: all on
       for (const r of REGIONS) map.addLayer(regionLayers[r]);
 
       if (pts.length) {

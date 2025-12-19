@@ -18,6 +18,11 @@
     map.getContainer().appendChild(div);
   }
 
+  if (!window.DaimyoPopup) {
+    showMapError("popup.js did not load (DaimyoPopup missing). Check script order.", null);
+    return;
+  }
+
   const dataUrl = new URL(
     `data/daimyo_domains.geojson?v=${encodeURIComponent(DaimyoPopup.BUILD)}`,
     document.baseURI
@@ -32,9 +37,8 @@
       const layer = L.geoJSON(geo, {
         pointToLayer: (feat, latlng) => {
           const p = feat.properties || {};
-          const m = L.marker(latlng, { icon: DaimyoPopup.crestDivIcon(p, 28) });
-          m.bindPopup(DaimyoPopup.buildPopupHtml(p), { maxWidth: 320 });
-          return m;
+          return L.marker(latlng, { icon: DaimyoPopup.crestDivIcon(p, 28) })
+            .bindPopup(DaimyoPopup.buildPopupHtml(p), { maxWidth: 320 });
         },
       });
 
