@@ -2,14 +2,14 @@
 (function () {
   "use strict";
 
-  const BUILD = "20251222-03"; // bump this when you change the file
+  const BUILD = "20251222-04"; // bump this when you change the file
   const DATA_URL = "data/daimyo_domains.geojson";
 
   // Make region-filter icons smaller here:
   const REGION_ICON_SIZE = 26; // px (try 22–28)
 
-  // Desired UI order (works even if the GeoJSON uses macrons/’/hyphens)
-  const REGION_ORDER = [
+  // Desired order (diacritics/curly apostrophes in GeoJSON are handled via normalization)
+  const REGION_ORDER_KEYS = [
     "ezotohoku",
     "kanto",
     "koshinetsu",
@@ -19,6 +19,32 @@
     "chugoku",
     "kyushu",
   ];
+  const REGION_ORDER_INDEX = Object.fromEntries(
+    REGION_ORDER_KEYS.map((k, i) => [k, i])
+  );
+
+  // Normalize region names like "Kantō" -> "kanto", "Kōshin’etsu" -> "koshinetsu"
+  function canonRegionName(s) {
+    return String(s ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+      .replace(/[’']/g, "") // strip apostrophes
+      .replace(/[^a-zA-Z0-9]/g, "") // strip punctuation/spaces/hyphens
+      .toLowerCase();
+  }
+
+  function orderRegions(regions) {
+    return regions
+      .slice()
+      .sort((a, b) => {
+        const ia = REGION_ORDER_INDEX[canonRegionName(a)];
+        const ib = REGION_ORDER_INDEX[canonRegionName(b)];
+        const ra = Number.isFinite(ia) ? ia : 999;
+        const rb = Number.isFinite(ib) ? ib : 999;
+        if (ra !== rb) return ra - rb;
+        return a.localeCompare(b);
+      });
+  }
 
   const errorBanner = document.getElementById("error-banner");
   function showError(msg) {
@@ -32,40 +58,17 @@
   }
 
   function ensurePopupApi() {
-    if (!window.DaimyoPopup) throw new Error("popup.js did not load (window.DaimyoPopup missing)");
+    if (!window.DaimyoPopup)
+      throw new Error("popup.js did not load (window.DaimyoPopup missing)");
     if (typeof window.DaimyoPopup.buildPopupHtml !== "function") {
-      throw new Error("DaimyoPopup.buildPopupHtml is not a function (popup.js mismatch)");
+      throw new Error(
+        "DaimyoPopup.buildPopupHtml is not a function (popup.js mismatch)"
+      );
     }
   }
 
-  function uniqSorted(arr) {
-    return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
-  }
-
-  function normalizeRegionName(s) {
-    return String(s || "")
-      .toLowerCase()
-      .normalize("NFKD")                 // split accents (ō -> o + mark)
-      .replace(/[\u0300-\u036f]/g, "")   // remove accent marks
-      .replace(/[’']/g, "")              // remove apostrophes
-      .replace(/[\s-]/g, "");            // remove spaces/hyphens
-  }
-
-  function sortRegionsInPreferredOrder(regions) {
-    return [...regions].sort((a, b) => {
-      const ia = REGION_ORDER.indexOf(normalizeRegionName(a));
-      const ib = REGION_ORDER.indexOf(normalizeRegionName(b));
-
-      // Known regions first, in REGION_ORDER order
-      if (ia !== -1 || ib !== -1) {
-        if (ia === -1) return 1;
-        if (ib === -1) return -1;
-        return ia - ib;
-      }
-
-      // Any unexpected region names fall back to alphabetical
-      return a.localeCompare(b);
-    });
+  function uniq(arr) {
+    return Array.from(new Set(arr.filter(Boolean)));
   }
 
   function escapeAttr(s) {
@@ -78,11 +81,10 @@
 
   // Small crest icon for the REGION map (independent of popup.js icon size)
   function makeRegionCrestDivIcon(props, sizePx) {
-    const file = (props && props.icon) ? String(props.icon) : "";
+    const file = props && props.icon ? String(props.icon) : "";
     const src = file ? `imgs/${encodeURIComponent(file)}` : "";
     const alt = escapeAttr(props && props.name ? props.name : "crest");
 
-    // If an image 404s, hide it but keep the framed square
     const imgHtml = src
       ? `<img src="${src}" alt="${alt}" loading="lazy"
               onerror="this.style.display='none';"
@@ -128,16 +130,16 @@
       if (!res.ok) throw new Error(`Failed to fetch ${DATA_URL} (${res.status})`);
       const geojson = await res.json();
 
-      const features = (geojson && geojson.features) ? geojson.features : [];
+      const features = geojson && geojson.features ? geojson.features : [];
 
-      // Regions: unique, then apply preferred UI order
-      let regions = uniqSorted(features.map((f) => (f.properties || {}).region));
-      regions = sortRegionsInPreferredOrder(regions);
+      // Get regions (unique), then apply your custom order
+      const rawRegions = uniq(features.map((f) => (f.properties || {}).region));
+      const regions = orderRegions(rawRegions);
 
       const regionGroups = {};
       regions.forEach((r) => (regionGroups[r] = L.layerGroup()));
 
-      // We'll compute bounds safely
+      // Compute bounds safely
       const bounds = L.latLngBounds([]);
 
       // Build markers into groups
@@ -192,7 +194,9 @@
       }
 
       function getCheckboxes() {
-        return Array.from(listEl.querySelectorAll("input[type='checkbox'][data-region]"));
+        return Array.from(
+          listEl.querySelectorAll("input[type='checkbox'][data-region]")
+        );
       }
 
       listEl.innerHTML = "";
@@ -239,7 +243,7 @@
         });
       }
 
-      // console.log("Region map loaded", BUILD);
+      console.log("app-region build:", BUILD);
     } catch (err) {
       console.error("Failed to load daimyo data (see console).", err);
       showError("Failed to load daimyo data (see console).");
