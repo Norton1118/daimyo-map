@@ -4780,8 +4780,8 @@
         "notes": "Same Name Domain",
         "daimyo": "Uemura",
         "wikipedia": "https://en.wikipedia.org/wiki/Takatori_Domain",
-        "icon": "209_Tkatori.png",
-        "popup": "<div><img class=\"popup-icon\" src=\"imgs/209_Tkatori.png\" alt=\"\" style=\"width:28px;height:28px;border-radius:4px;border:2px solid rgba(0,0,0,.25);box-sizing:border-box\"/></div><div class=\"popup-title\" style=\"font-weight:600;margin-top:4px\">Takatori Domain</div><div>Same Name Domain</div><div>Nara Prefecture</div><div>Daimyo: Uemura</div><div>Stipend: 2.5</div><div style=\"margin-top:4px\"><a href=\"https://en.wikipedia.org/wiki/Takatori_Domain\" target=\"_blank\" rel=\"noopener\">Wikipedia</a></div>",
+        "icon": "209_Takatori.png",
+        "popup": "<div><img class=\"popup-icon\" src=\"imgs/209_Takatori.png\" alt=\"\" style=\"width:28px;height:28px;border-radius:4px;border:2px solid rgba(0,0,0,.25);box-sizing:border-box\"/></div><div class=\"popup-title\" style=\"font-weight:600;margin-top:4px\">Takatori Domain</div><div>Same Name Domain</div><div>Nara Prefecture</div><div>Daimyo: Uemura</div><div>Stipend: 2.5</div><div style=\"margin-top:4px\"><a href=\"https://en.wikipedia.org/wiki/Takatori_Domain\" target=\"_blank\" rel=\"noopener\">Wikipedia</a></div>",
         "stipend (Man Koku)": "2.5 (Man-koku)"
       }
     },
