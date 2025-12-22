@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="en">
 
 <head>
@@ -6,7 +6,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daimyo Map — Region filters</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="icon" href="data:," />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
   <style>
     html,
@@ -15,64 +18,142 @@
       margin: 0;
     }
 
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    }
-
     header {
-      height: 52px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      padding: 10px 14px;
+      border-bottom: 1px solid #eee;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 14px;
-      border-bottom: 1px solid #e5e7eb;
-      background: #fff;
+      gap: 12px;
+    }
+
+    header .title {
+      font-weight: 700;
+      font-size: 20px;
+    }
+
+    header a {
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    #map-wrap {
+      position: relative;
+      height: calc(100vh - 52px);
     }
 
     #map {
-      height: calc(100vh - 52px);
-      width: 100%;
+      height: 100%;
     }
 
-    /* popup styles */
-    .crest-div-icon {
-      background: transparent;
-      border: none;
+    .error-banner {
+      position: absolute;
+      z-index: 1000;
+      left: 12px;
+      right: 12px;
+      top: 12px;
+      padding: 10px 12px;
+      background: #d72626;
+      color: #fff;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      border-radius: 8px;
+      display: none;
     }
 
-    .daimyo-popup {
-      line-height: 1.25;
-      max-width: 280px;
+    /* Sidebar */
+    #sidebar {
+      position: absolute;
+      z-index: 900;
+      left: 12px;
+      top: 80px;
+      width: 220px;
+      background: rgba(255, 255, 255, .95);
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+      padding: 10px 10px 8px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
 
-    .popup-crest-wrap {
+    #sidebar h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    #sidebar .btnrow {
       display: flex;
-      justify-content: center;
-      margin-bottom: 6px;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    #sidebar button {
+      cursor: pointer;
+    }
+
+    #regions {
+      display: grid;
+      gap: 6px;
+    }
+
+    .region-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .region-item label {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    /* Popup styling (same as clustered) */
+    .popup-card {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      min-width: 220px;
+    }
+
+    .popup-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
     }
 
     .popup-crest {
-      width: 60px;
-      height: 60px;
+      width: 56px;
+      height: 56px;
       object-fit: contain;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 0, 0, .08);
+      background: #fff;
     }
 
     .popup-title {
-      font-weight: 700;
-      margin: 0 0 6px;
+      font-weight: 800;
+      font-size: 16px;
+      margin: 0;
     }
 
     .popup-sub {
       color: #555;
-      font-size: 12px;
+      font-size: 13px;
+      line-height: 1.2;
       margin: 2px 0;
     }
 
     .popup-line {
-      margin-top: 6px;
+      margin-top: 8px;
+      font-size: 14px;
     }
 
     .popup-notes {
+      margin-top: 8px;
+      font-style: italic;
+      color: #444;
+    }
+
+    .popup-link {
+      display: inline-block;
       margin-top: 8px;
     }
 
@@ -88,26 +169,51 @@
       width: 26px;
       height: 26px;
       object-fit: contain;
-      opacity: 0.95;
+      opacity: .95;
+    }
+
+    .crest-pin {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      border: 2px solid rgba(0, 0, 0, .75);
+      background: rgba(255, 255, 255, .9);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+    }
+
+    .crest-pin img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
     }
   </style>
 </head>
 
 <body>
   <header>
-    <div style="font-weight:700;">Daimyo Map — Region filters</div>
-    <a href="./index.html" style="text-decoration:none;font-weight:600;">← Clustered</a>
+    <div class="title">Daimyo Map — Region filters</div>
+    <a href="./index.html">← Clustered</a>
   </header>
 
-  <div id="map"></div>
+  <div id="map-wrap">
+    <div id="error" class="error-banner"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <div id="sidebar">
+      <h3>Regions</h3>
+      <div class="btnrow">
+        <button id="selectAll" type="button">Select all</button>
+        <button id="clearAll" type="button">Clear</button>
+      </div>
+      <div id="regions"></div>
+    </div>
 
-  <!-- MUST be before app-region.js -->
+    <div id="map"></div>
+  </div>
+
   <script src="./js/popup.js?v=20251222-1"></script>
-  <script src="./js/app.js?v=20251222-1"></script>
-
-
+  <script src="./js/app-region.js?v=20251222-1"></script>
 </body>
 
 </html>
