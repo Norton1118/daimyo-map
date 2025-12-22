@@ -2,8 +2,11 @@
 (function () {
   "use strict";
 
-  const BUILD = "20251222-02"; // bump this when you change the file
-  const DATA_URL = "data/daimyo_domains.geojson";
+  const BUILD = "20251222-03"; // bump when you change data
+  const DATA_URL = `data/daimyo_domains.geojson?v=${BUILD}`;
+
+  window.__APP_REGION_BUILD__ = BUILD;
+  console.log("app-region build:", BUILD);
 
   // Make region-filter icons smaller here:
   const REGION_ICON_SIZE = 26; // px (try 22–28)
