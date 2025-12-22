@@ -2,14 +2,23 @@
 (function () {
   "use strict";
 
-  const BUILD = "20251222-03"; // bump when you change data
-  const DATA_URL = `data/daimyo_domains.geojson?v=${BUILD}`;
-
-  window.__APP_REGION_BUILD__ = BUILD;
-  console.log("app-region build:", BUILD);
+  const BUILD = "20251222-03"; // bump this when you change the file
+  const DATA_URL = "data/daimyo_domains.geojson";
 
   // Make region-filter icons smaller here:
   const REGION_ICON_SIZE = 26; // px (try 22–28)
+
+  // Desired UI order (works even if the GeoJSON uses macrons/’/hyphens)
+  const REGION_ORDER = [
+    "ezotohoku",
+    "kanto",
+    "koshinetsu",
+    "tokai",
+    "kinki",
+    "shikoku",
+    "chugoku",
+    "kyushu",
+  ];
 
   const errorBanner = document.getElementById("error-banner");
   function showError(msg) {
@@ -31,6 +40,32 @@
 
   function uniqSorted(arr) {
     return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }
+
+  function normalizeRegionName(s) {
+    return String(s || "")
+      .toLowerCase()
+      .normalize("NFKD")                 // split accents (ō -> o + mark)
+      .replace(/[\u0300-\u036f]/g, "")   // remove accent marks
+      .replace(/[’']/g, "")              // remove apostrophes
+      .replace(/[\s-]/g, "");            // remove spaces/hyphens
+  }
+
+  function sortRegionsInPreferredOrder(regions) {
+    return [...regions].sort((a, b) => {
+      const ia = REGION_ORDER.indexOf(normalizeRegionName(a));
+      const ib = REGION_ORDER.indexOf(normalizeRegionName(b));
+
+      // Known regions first, in REGION_ORDER order
+      if (ia !== -1 || ib !== -1) {
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      }
+
+      // Any unexpected region names fall back to alphabetical
+      return a.localeCompare(b);
+    });
   }
 
   function escapeAttr(s) {
@@ -94,12 +129,15 @@
       const geojson = await res.json();
 
       const features = (geojson && geojson.features) ? geojson.features : [];
-      const regions = uniqSorted(features.map((f) => (f.properties || {}).region));
+
+      // Regions: unique, then apply preferred UI order
+      let regions = uniqSorted(features.map((f) => (f.properties || {}).region));
+      regions = sortRegionsInPreferredOrder(regions);
 
       const regionGroups = {};
       regions.forEach((r) => (regionGroups[r] = L.layerGroup()));
 
-      // We'll compute bounds safely (no FeatureGroup over LayerGroups)
+      // We'll compute bounds safely
       const bounds = L.latLngBounds([]);
 
       // Build markers into groups
@@ -136,7 +174,7 @@
       // Add all by default
       Object.values(regionGroups).forEach((lg) => lg.addTo(map));
 
-      // Fit bounds across all markers (SAFE)
+      // Fit bounds across all markers
       if (bounds.isValid()) map.fitBounds(bounds.pad(0.05));
 
       // Build UI
