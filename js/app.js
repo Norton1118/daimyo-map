@@ -1,63 +1,80 @@
-﻿// js/app.js
-(() => {
-  const DATA_URL = `data/daimyo_domains.geojson?v=${encodeURIComponent(
-    window.DaimyoPopup?.BUILD || "data-1"
-  )}`;
+﻿/* js/app.js - Clustered map */
+(function () {
+  "use strict";
 
+  const BUILD = "20251222-01";
+  const DATA_URL = "data/daimyo_domains.geojson";
+
+  const errorBanner = document.getElementById("error-banner");
   function showError(msg) {
-    const el = document.getElementById("error-banner");
-    if (!el) return;
-    el.style.display = "block";
-    el.textContent = msg;
+    if (errorBanner) {
+      errorBanner.style.display = "block";
+      errorBanner.textContent = msg;
+    }
+  }
+
+  function ensurePopupApi() {
+    if (!window.DaimyoPopup) throw new Error("popup.js did not load (window.DaimyoPopup missing)");
+    if (typeof window.DaimyoPopup.buildPopupHtml !== "function") {
+      throw new Error("DaimyoPopup.buildPopupHtml is not a function (popup.js mismatch)");
+    }
+    if (typeof window.DaimyoPopup.crestDivIcon !== "function") {
+      throw new Error("DaimyoPopup.crestDivIcon is not a function (popup.js mismatch)");
+    }
   }
 
   async function main() {
-    const map = L.map("map", { zoomControl: true }).setView([36.2, 138.25], 5);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap contributors",
-    }).addTo(map);
-
-    const hasCluster = typeof L.markerClusterGroup === "function";
-    const container = hasCluster
-      ? L.markerClusterGroup({ showCoverageOnHover: false })
-      : L.layerGroup();
-
     try {
+      ensurePopupApi();
+
+      const map = L.map("map", { zoomControl: true }).setView([36.2, 138.25], 5);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      const clusters = L.markerClusterGroup({
+        showCoverageOnHover: false,
+        spiderfyOnMaxZoom: true,
+        disableClusteringAtZoom: 10,
+      });
+
       const res = await fetch(DATA_URL, { cache: "no-store" });
-      if (!res.ok) throw new Error(`GeoJSON fetch failed: ${res.status}`);
+      if (!res.ok) throw new Error(`Failed to fetch ${DATA_URL} (${res.status})`);
+
       const geojson = await res.json();
 
       const layer = L.geoJSON(geojson, {
         pointToLayer: (feature, latlng) => {
-          const p = feature?.properties || {};
-          const DP = window.DaimyoPopup || {};
+          const p = feature.properties || {};
+          const icon = window.DaimyoPopup.crestDivIcon(p);
+          const marker = L.marker(latlng, { icon });
 
-          const icon =
-            typeof DP.crestDivIcon === "function"
-              ? DP.crestDivIcon(p, { size: 44 })
-              : undefined;
+          const html = window.DaimyoPopup.buildPopupHtml(p);
+          marker.bindPopup(html, { maxWidth: 320, className: "daimyo-leaflet-popup" });
 
-          const marker = icon ? L.marker(latlng, { icon }) : L.marker(latlng);
+          marker.on("popupopen", (e) => {
+            // Hook close button inside popup
+            const el = e.popup.getElement();
+            if (!el) return;
+            const btn = el.querySelector(".popup-close");
+            if (btn) btn.onclick = () => map.closePopup();
+          });
 
-          const html =
-            typeof DP.buildPopupHtml === "function"
-              ? DP.buildPopupHtml(p)
-              : `<b>${String(p.name || "Domain")}</b>`;
-
-          marker.bindPopup(html, { maxWidth: 320, closeButton: false, className: "daimyo-popup" });
           return marker;
         },
       });
 
-      container.addLayer(layer);
-      container.addTo(map);
+      clusters.addLayer(layer);
+      map.addLayer(clusters);
 
-      const bounds = layer.getBounds?.();
-      if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
+      // Fit bounds safely
+      const b = clusters.getBounds();
+      if (b && b.isValid()) map.fitBounds(b.pad(0.05));
+      // console.log("Clustered map loaded", BUILD, "popup", window.DaimyoPopup.BUILD);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load daimyo data (see console).", err);
       showError("Failed to load daimyo data (see console).");
     }
   }

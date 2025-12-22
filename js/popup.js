@@ -1,49 +1,53 @@
-// js/popup.js
-(() => {
-  const BUILD = "2025-12-22-POPUP-1";
+/* js/popup.js
+ * Provides:
+ *   window.DaimyoPopup.buildPopupHtml(props)
+ *   window.DaimyoPopup.crestDivIcon(props)
+ *   window.DaimyoPopup.iconUrl(props)
+ */
+(function () {
+  "use strict";
+
+  const BUILD = "20251222-01";
   const ICON_DIR = "imgs/";
 
-  // Simple inline placeholder crest (so missing img files won't break popups/markers)
-  const PLACEHOLDER_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">
-  <rect width="100%" height="100%" rx="10" ry="10" fill="#f2f2f2"/>
-  <circle cx="40" cy="40" r="28" fill="white" stroke="#333" stroke-width="3"/>
-  <path d="M40 18 L55 40 L40 62 L25 40 Z" fill="#333"/>
-</svg>`;
-  const PLACEHOLDER = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(PLACEHOLDER_SVG);
+  // Simple inline placeholder crest (never 404s)
+  const PLACEHOLDER_SVG =
+    "data:image/svg+xml;charset=UTF-8," +
+    encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96">
+        <rect width="100%" height="100%" rx="12" ry="12" fill="#f2f2f2"/>
+        <circle cx="48" cy="48" r="26" fill="#e6e6e6" stroke="#cfcfcf" stroke-width="3"/>
+        <path d="M32 48h32" stroke="#b0b0b0" stroke-width="5" stroke-linecap="round"/>
+      </svg>
+    `);
 
-  const esc = (v) =>
-    String(v ?? "")
+  function esc(v) {
+    return String(v ?? "")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
-
-  const str = (v) => {
-    const t = String(v ?? "").trim();
-    if (!t || t === "-" || t === "—") return "";
-    return t;
-  };
-
-  function isGovtLand(notesRaw) {
-    const notes = str(notesRaw).toLowerCase();
-    if (!notes) return false;
-    if (notes.includes("shogunate land")) return true;
-    // covers "Territory of the Tsu Domain" etc.
-    if (notes.includes("territory of")) return true;
-    return false;
   }
 
-  function parseManKoku(raw) {
-    if (raw == null) return null;
-    if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  function norm(s) {
+    return String(s ?? "").trim();
+  }
 
-    const t = str(raw);
-    if (!t) return null;
+  function isGovOrTerritory(notes) {
+    const n = norm(notes).toLowerCase();
+    return n.startsWith("shogunate land") || n.startsWith("territory of");
+  }
 
-    // Handles: "3 (Man-koku)", "10.5", "10,5", "30000" etc.
-    const m = t.replaceAll(",", "").match(/-?\d+(?:\.\d+)?/);
+  function parseManKoku(val) {
+    // Handles: number, "21 (Man-koku)", "6.7", etc.
+    if (val === null || val === undefined) return null;
+    if (typeof val === "number" && Number.isFinite(val)) return val;
+
+    const s = String(val).trim();
+    if (!s) return null;
+
+    const m = s.match(/-?\d+(\.\d+)?/);
     if (!m) return null;
 
     const n = parseFloat(m[0]);
@@ -51,118 +55,145 @@
   }
 
   function formatManKoku(n) {
-    if (n == null) return "";
-    const isInt = Math.abs(n - Math.round(n)) < 1e-9;
-    if (isInt) return String(Math.round(n));
-    return String(Math.round(n * 10) / 10); // 1 decimal if needed
+    if (n === null || n === undefined || !Number.isFinite(n)) return null;
+
+    // Keep up to 1 decimal if needed, but trim trailing .0
+    let s = (Math.round(n * 10) / 10).toFixed(1);
+    if (s.endsWith(".0")) s = s.slice(0, -2);
+
+    // User asked for Man-Koku unit; include 万石 too
+    return `${s} 万石 (Man-koku)`;
   }
 
-  function resolveIconUrl(iconValue) {
-    const icon = str(iconValue);
-    if (!icon) return PLACEHOLDER;
-    if (/^data:/.test(icon)) return icon;
-    if (/^https?:\/\//i.test(icon)) return icon;
-    if (icon.includes("/")) return icon; // already a path like "imgs/xxx.png"
-    return ICON_DIR + icon;
+  function iconUrl(props) {
+    const raw = norm(props?.icon);
+    if (!raw) return PLACEHOLDER_SVG;
+
+    // If already a full/relative path, keep it
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.startsWith("imgs/") || raw.startsWith("./imgs/")) return raw;
+
+    return ICON_DIR + raw;
   }
 
-  function crestDivIcon(props, opts = {}) {
-    const size = Number(opts.size ?? 44);
-    const url = resolveIconUrl(props?.icon);
+  function crestDivIcon(props) {
+    const url = iconUrl(props);
 
+    // Use <img> for crests; if missing, swap to placeholder
     const html = `
-<div class="crest-pin" style="width:${size}px;height:${size}px;">
-  <img
-    src="${esc(url)}"
-    alt="crest"
-    style="width:100%;height:100%;object-fit:contain;border-radius:8px;"
-    onerror="this.onerror=null;this.src='${PLACEHOLDER}'"
-  />
-</div>`;
+      <div class="crest-marker">
+        <img
+          class="crest-marker-img"
+          src="${esc(url)}"
+          alt=""
+          onerror="this.onerror=null;this.src='${esc(PLACEHOLDER_SVG)}';"
+        />
+      </div>
+    `;
 
     return L.divIcon({
       className: "crest-divicon",
       html,
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-      popupAnchor: [0, -size / 2],
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -16],
     });
   }
 
-  function buildPopupHtml(p) {
-    const name = str(p?.name) || "Unknown";
-    const country = str(p?.country);
-    const region = str(p?.region);
-    const prefecture = str(p?.prefecture);
-    const daimyo = str(p?.daimyo);
-    const notes = str(p?.notes);
-    const wikipedia = str(p?.wikipedia);
-    const crest = resolveIconUrl(p?.icon);
+  function buildPopupHtml(props) {
+    const name = norm(props?.name) || "Unknown";
+    const country = norm(props?.country);
+    const region = norm(props?.region);
+    const pref = norm(props?.prefecture);
+    const daimyo = norm(props?.daimyo);
+    const notes = norm(props?.notes);
+    const wiki = norm(props?.wikipedia);
 
-    const stipendN = parseManKoku(p?.["stipend (Man Koku)"]);
-    const showStipend = stipendN != null && !isGovtLand(notes);
+    const crest = iconUrl(props);
 
-    const lines = [];
-    if (country) lines.push(`<div class="popup-line">${esc(country)}</div>`);
-    if (region) lines.push(`<div class="popup-line">${esc(region)}</div>`);
-    if (prefecture) lines.push(`<div class="popup-line">${esc(prefecture)}</div>`);
+    const govtOrTerritory = isGovOrTerritory(notes);
 
-    const body = [];
-    if (daimyo) body.push(`<div class="popup-line"><b>Daimyo:</b> ${esc(daimyo)}</div>`);
-
-    // Keep current style for Shogunate Land / Territory-of: show notes, no stipend
-    if (notes && isGovtLand(notes)) {
-      body.push(`<div class="popup-notes"><i>${esc(notes)}</i></div>`);
-    } else if (notes) {
-      body.push(`<div class="popup-notes">${esc(notes)}</div>`);
+    // Stipend rule:
+    // - Only show stipend if NOT (Shogunate Land / Territory of ...)
+    // - Use "stipend (Man Koku)" if present
+    let stipendLine = "";
+    if (!govtOrTerritory) {
+      const mk = parseManKoku(props?.["stipend (Man Koku)"]);
+      const formatted = formatManKoku(mk);
+      if (formatted) {
+        stipendLine = `
+          <div class="popup-line">
+            <b>Stipend:</b> ${esc(formatted)}
+          </div>
+        `;
+      }
     }
 
-    if (showStipend) {
-      const v = formatManKoku(stipendN);
-      body.push(
-        `<div class="popup-line"><b>Stipend:</b> ${esc(v)} 万石 <span class="popup-unit">(Man-koku)</span></div>`
-      );
-    }
+    // Daimyo line: show only if not govt/territory and daimyo exists
+    const daimyoLine =
+      !govtOrTerritory && daimyo
+        ? `<div class="popup-line"><b>Daimyo:</b> ${esc(daimyo)}</div>`
+        : "";
 
-    if (wikipedia) {
-      body.push(
-        `<div class="popup-line"><a href="${esc(wikipedia)}" target="_blank" rel="noopener">Wikipedia</a></div>`
-      );
-    }
+    // Notes:
+    // - If Shogunate Land / Territory..., show notes prominently (italic) and do NOT show stipend
+    // - Otherwise, show notes only if it exists (e.g., Branch Han)
+    const notesLine = notes
+      ? govtOrTerritory
+        ? `<div class="popup-line"><i>${esc(notes)}</i></div>`
+        : `<div class="popup-notes"><i>${esc(notes)}</i></div>`
+      : "";
+
+    const wikiLine = wiki
+      ? `<div class="popup-line"><a href="${esc(wiki)}" target="_blank" rel="noopener">Wikipedia</a></div>`
+      : "";
 
     return `
-<div class="popup-card">
-  <button class="popup-close" type="button" onclick="this.closest('.leaflet-popup').querySelector('.leaflet-popup-close-button')?.click()">×</button>
+      <div class="popup-card">
+        <div class="popup-close">×</div>
 
-  <div class="popup-crest">
-    <img src="${esc(crest)}" alt="" onerror="this.onerror=null;this.src='${PLACEHOLDER}'" />
-  </div>
+        <div class="popup-crest-wrap">
+          <img
+            class="popup-crest"
+            src="${esc(crest)}"
+            alt=""
+            onerror="this.onerror=null;this.src='${esc(PLACEHOLDER_SVG)}';"
+          />
+        </div>
 
-  <div class="popup-title">${esc(name)}</div>
+        <div class="popup-title">${esc(name)}</div>
 
-  <div class="popup-sub">
-    ${lines.join("")}
-  </div>
+        ${country ? `<div class="popup-sub">${esc(country)}</div>` : ""}
+        ${region ? `<div class="popup-sub">${esc(region)}</div>` : ""}
+        ${pref ? `<div class="popup-sub">${esc(pref)}</div>` : ""}
 
-  <div class="popup-body">
-    ${body.join("")}
-  </div>
+        ${daimyoLine}
+        ${stipendLine}
+        ${wikiLine}
 
-  <div class="popup-footer">
-    <img class="popup-footer-crest" src="${esc(crest)}" alt="" onerror="this.onerror=null;this.src='${PLACEHOLDER}'"/>
-  </div>
-</div>`;
+        ${notesLine ? `<div class="popup-line">${notesLine}</div>` : ""}
+
+        <div class="popup-footer">
+          <div class="popup-footer-spacer"></div>
+          <img
+            class="popup-footer-crest"
+            src="${esc(crest)}"
+            alt=""
+            onerror="this.onerror=null;this.src='${esc(PLACEHOLDER_SVG)}';"
+          />
+        </div>
+      </div>
+    `;
   }
 
-  window.DaimyoPopup = window.DaimyoPopup || {};
-  Object.assign(window.DaimyoPopup, {
+  // Attach / overwrite safely
+  window.DaimyoPopup = {
     BUILD,
+    iconUrl,
     crestDivIcon,
     buildPopupHtml,
-    isGovtLand,
-    parseManKoku,
-  });
+  };
 
-  // Optional: uncomment for debugging
-  // console.log("DaimyoPopup loaded:", BUILD);
+  // Optional: quick console check
+  // console.log("DaimyoPopup loaded", BUILD, window.DaimyoPopup);
 })();

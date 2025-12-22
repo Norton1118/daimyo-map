@@ -1,131 +1,156 @@
-﻿// js/app-region.js
-(() => {
-  const DATA_URL = `data/daimyo_domains.geojson?v=${encodeURIComponent(
-    window.DaimyoPopup?.BUILD || "data-1"
-  )}`;
+﻿/* js/app-region.js - Region filter map */
+(function () {
+  "use strict";
 
+  const BUILD = "20251222-01";
+  const DATA_URL = "data/daimyo_domains.geojson";
+
+  const errorBanner = document.getElementById("error-banner");
   function showError(msg) {
-    const el = document.getElementById("error-banner");
-    if (!el) return;
-    el.style.display = "block";
-    el.textContent = msg;
+    if (errorBanner) {
+      errorBanner.style.display = "block";
+      errorBanner.textContent = msg;
+    }
+  }
+
+  function ensurePopupApi() {
+    if (!window.DaimyoPopup) throw new Error("popup.js did not load (window.DaimyoPopup missing)");
+    if (typeof window.DaimyoPopup.buildPopupHtml !== "function") {
+      throw new Error("DaimyoPopup.buildPopupHtml is not a function (popup.js mismatch)");
+    }
+    if (typeof window.DaimyoPopup.crestDivIcon !== "function") {
+      throw new Error("DaimyoPopup.crestDivIcon is not a function (popup.js mismatch)");
+    }
   }
 
   function uniqSorted(arr) {
-    return [...new Set(arr)].filter(Boolean).sort((a, b) => a.localeCompare(b));
+    return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
   }
 
   async function main() {
-    const map = L.map("map", { zoomControl: true }).setView([36.2, 138.25], 5);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap contributors",
-    }).addTo(map);
-
-    const markerLayer = L.layerGroup().addTo(map);
-
     try {
+      ensurePopupApi();
+
+      const map = L.map("map", { zoomControl: true }).setView([36.2, 138.25], 5);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
       const res = await fetch(DATA_URL, { cache: "no-store" });
-      if (!res.ok) throw new Error(`GeoJSON fetch failed: ${res.status}`);
+      if (!res.ok) throw new Error(`Failed to fetch ${DATA_URL} (${res.status})`);
       const geojson = await res.json();
 
-      const features = geojson?.features || [];
-      const regions = uniqSorted(features.map((f) => f?.properties?.region));
+      const features = (geojson && geojson.features) ? geojson.features : [];
+      const regions = uniqSorted(features.map((f) => (f.properties || {}).region));
 
-      // Build markers once
-      const all = []; // { region, marker }
-      const DP = window.DaimyoPopup || {};
+      const regionGroups = {};
+      regions.forEach((r) => (regionGroups[r] = L.layerGroup()));
 
-      for (const f of features) {
-        const p = f?.properties || {};
-        const region = p.region || "";
-        const coords = f?.geometry?.coordinates;
-        if (!coords || coords.length < 2) continue;
+      // Build markers into groups
+      features.forEach((f) => {
+        const p = f.properties || {};
+        const g = f.geometry || {};
+        if (g.type !== "Point" || !Array.isArray(g.coordinates)) return;
 
-        const latlng = L.latLng(coords[1], coords[0]);
+        const [lon, lat] = g.coordinates;
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
-        const icon =
-          typeof DP.crestDivIcon === "function"
-            ? DP.crestDivIcon(p, { size: 40 })
-            : undefined;
+        const r = p.region;
+        if (!r || !regionGroups[r]) return;
 
-        const marker = icon ? L.marker(latlng, { icon }) : L.marker(latlng);
+        const icon = window.DaimyoPopup.crestDivIcon(p);
+        const marker = L.marker([lat, lon], { icon });
 
-        const html =
-          typeof DP.buildPopupHtml === "function"
-            ? DP.buildPopupHtml(p)
-            : `<b>${String(p.name || "Domain")}</b>`;
-
-        marker.bindPopup(html, { maxWidth: 320, closeButton: false, className: "daimyo-popup" });
-
-        all.push({ region, marker });
-      }
-
-      // UI
-      const panel = document.getElementById("region-panel");
-      if (!panel) throw new Error("Missing #region-panel in HTML.");
-
-      panel.innerHTML = `
-        <div class="panel-title">Regions</div>
-        <div class="panel-actions">
-          <button id="btn-all" type="button">Select all</button>
-          <button id="btn-clear" type="button">Clear</button>
-        </div>
-        <div id="region-list" class="panel-list"></div>
-      `;
-
-      const list = panel.querySelector("#region-list");
-
-      // default: all checked
-      const selected = new Set(regions);
-
-      for (const r of regions) {
-        const id = `rg-${r.replace(/\s+/g, "-").replace(/[^\w\-]/g, "")}`;
-        const row = document.createElement("label");
-        row.className = "panel-row";
-        row.innerHTML = `
-          <input type="checkbox" id="${id}" checked />
-          <span>${r}</span>
-        `;
-        const cb = row.querySelector("input");
-        cb.addEventListener("change", () => {
-          if (cb.checked) selected.add(r);
-          else selected.delete(r);
-          apply();
+        marker.bindPopup(window.DaimyoPopup.buildPopupHtml(p), {
+          maxWidth: 320,
+          className: "daimyo-leaflet-popup",
         });
-        list.appendChild(row);
-      }
 
-      function apply() {
-        markerLayer.clearLayers();
-        for (const item of all) {
-          if (selected.has(item.region)) markerLayer.addLayer(item.marker);
-        }
-      }
+        marker.on("popupopen", (e) => {
+          const el = e.popup.getElement();
+          if (!el) return;
+          const btn = el.querySelector(".popup-close");
+          if (btn) btn.onclick = () => map.closePopup();
+        });
 
-      panel.querySelector("#btn-all").addEventListener("click", () => {
-        selected.clear();
-        for (const r of regions) selected.add(r);
-        panel.querySelectorAll("input[type=checkbox]").forEach((cb) => (cb.checked = true));
-        apply();
+        regionGroups[r].addLayer(marker);
       });
 
-      panel.querySelector("#btn-clear").addEventListener("click", () => {
-        selected.clear();
-        panel.querySelectorAll("input[type=checkbox]").forEach((cb) => (cb.checked = false));
-        apply();
+      // Add all by default
+      Object.values(regionGroups).forEach((lg) => lg.addTo(map));
+
+      // Fit bounds across all markers
+      const all = L.featureGroup(Object.values(regionGroups));
+      const b = all.getBounds();
+      if (b && b.isValid()) map.fitBounds(b.pad(0.05));
+
+      // Build UI
+      const listEl = document.getElementById("region-list");
+      const selectAllBtn = document.getElementById("btn-select-all");
+      const clearBtn = document.getElementById("btn-clear");
+
+      if (!listEl) throw new Error("Missing #region-list in index_region.html");
+
+      function setRegionEnabled(regionName, enabled) {
+        const lg = regionGroups[regionName];
+        if (!lg) return;
+        if (enabled) lg.addTo(map);
+        else map.removeLayer(lg);
+      }
+
+      function getCheckboxes() {
+        return Array.from(listEl.querySelectorAll("input[type='checkbox'][data-region]"));
+      }
+
+      listEl.innerHTML = "";
+      regions.forEach((r) => {
+        const id = "r_" + r.replace(/\W+/g, "_");
+
+        const row = document.createElement("label");
+        row.className = "region-row";
+        row.htmlFor = id;
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.id = id;
+        cb.checked = true;
+        cb.dataset.region = r;
+
+        cb.addEventListener("change", () => {
+          setRegionEnabled(r, cb.checked);
+        });
+
+        const span = document.createElement("span");
+        span.textContent = r;
+
+        row.appendChild(cb);
+        row.appendChild(span);
+        listEl.appendChild(row);
       });
 
-      // initial draw
-      apply();
+      if (selectAllBtn) {
+        selectAllBtn.addEventListener("click", () => {
+          getCheckboxes().forEach((cb) => {
+            cb.checked = true;
+            setRegionEnabled(cb.dataset.region, true);
+          });
+        });
+      }
 
-      // fit bounds
-      const group = L.featureGroup(all.map((x) => x.marker));
-      const bounds = group.getBounds();
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
+      if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+          getCheckboxes().forEach((cb) => {
+            cb.checked = false;
+            setRegionEnabled(cb.dataset.region, false);
+          });
+        });
+      }
+
+      // console.log("Region map loaded", BUILD, "popup", window.DaimyoPopup.BUILD);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load daimyo data (see console).", err);
       showError("Failed to load daimyo data (see console).");
     }
   }
