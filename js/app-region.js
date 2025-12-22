@@ -78,9 +78,8 @@
       ensurePopupApi();
       hideError();
 
-      const map = L.map("map", {
-        zoomControl: true,
-      }).setView([36.2, 138.25], 5);
+      const map = L.map("map", { zoomControl: false }).setView([36.2, 138.25], 5);
+      L.control.zoom({ position: "bottomright" }).addTo(map);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
