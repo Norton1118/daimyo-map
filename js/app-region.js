@@ -1,14 +1,12 @@
-﻿/* js/app-region.js - Region filter map (smaller marker icons) */
+﻿/* js/app-region.js - Region filter map */
 (function () {
   "use strict";
 
-  // Bump this if you use cache-busting in index_region.html (recommended)
-  const BUILD = "20251222-02";
-
+  const BUILD = "20251222-02"; // bump this when you change the file
   const DATA_URL = "data/daimyo_domains.geojson";
 
-  // 🔧 Change this to control marker icon size on the Region Filter map
-  const REGION_ICON_SIZE = 26; // try 24 / 26 / 28
+  // Make region-filter icons smaller here:
+  const REGION_ICON_SIZE = 26; // px (try 22–28)
 
   const errorBanner = document.getElementById("error-banner");
   function showError(msg) {
@@ -17,11 +15,12 @@
       errorBanner.textContent = msg;
     }
   }
+  function hideError() {
+    if (errorBanner) errorBanner.style.display = "none";
+  }
 
   function ensurePopupApi() {
-    if (!window.DaimyoPopup) {
-      throw new Error("popup.js did not load (window.DaimyoPopup missing)");
-    }
+    if (!window.DaimyoPopup) throw new Error("popup.js did not load (window.DaimyoPopup missing)");
     if (typeof window.DaimyoPopup.buildPopupHtml !== "function") {
       throw new Error("DaimyoPopup.buildPopupHtml is not a function (popup.js mismatch)");
     }
@@ -31,63 +30,57 @@
     return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
   }
 
-  // Build a smaller crest icon using Leaflet's L.divIcon (so you can control size here)
-  function crestDivIconSmall(p, sizePx) {
-    const raw = (p && p.icon) ? String(p.icon).trim() : "";
-    const hasSrc = raw.length > 0;
+  function escapeAttr(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
 
-    // If geojson stores just filenames like "1_matsumae.png", make it "imgs/1_matsumae.png"
-    // If it already starts with "imgs/" or "http", keep as-is.
-    let src = raw;
-    if (hasSrc) {
-      const lower = src.toLowerCase();
-      const isAbsolute = lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("/");
-      const isImgs = lower.startsWith("imgs/");
-      if (!isAbsolute && !isImgs) src = "imgs/" + src;
-    }
+  // Small crest icon for the REGION map (independent of popup.js icon size)
+  function makeRegionCrestDivIcon(props, sizePx) {
+    const file = (props && props.icon) ? String(props.icon) : "";
+    const src = file ? `imgs/${encodeURIComponent(file)}` : "";
+    const alt = escapeAttr(props && props.name ? props.name : "crest");
 
-    // A tiny framed square like your current style
-    const pad = 6; // padding around the image inside the frame
-    const box = sizePx + pad * 2;
+    // If an image 404s, hide it but keep the framed square
+    const imgHtml = src
+      ? `<img src="${src}" alt="${alt}" loading="lazy"
+              onerror="this.style.display='none';"
+              style="width:100%;height:100%;object-fit:contain;display:block;" />`
+      : "";
 
-    const html = hasSrc
-      ? `
-        <div style="
-          width:${box}px;height:${box}px;
-          display:flex;align-items:center;justify-content:center;
-          background:#fff;border:2px solid #111;border-radius:6px;
-          box-shadow:0 1px 2px rgba(0,0,0,.25);
-        ">
-          <img
-            src="${src}"
-            alt=""
-            style="width:${sizePx}px;height:${sizePx}px;object-fit:contain;display:block;"
-            onerror="this.style.display='none'"
-          />
-        </div>
-      `
-      : `
-        <div style="
-          width:${box}px;height:${box}px;
-          background:#fff;border:2px solid #111;border-radius:6px;
-          box-shadow:0 1px 2px rgba(0,0,0,.25);
-        "></div>
-      `;
+    const frameStyle = [
+      `width:${sizePx}px`,
+      `height:${sizePx}px`,
+      `border-radius:6px`,
+      `border:1px solid rgba(0,0,0,0.35)`,
+      `background:#fff`,
+      `box-shadow:0 1px 4px rgba(0,0,0,0.18)`,
+      `overflow:hidden`,
+      `display:flex`,
+      `align-items:center`,
+      `justify-content:center`,
+    ].join(";");
 
     return L.divIcon({
-      html,
-      className: "daimyo-crest-icon", // keep empty-ish, we style inline
-      iconSize: [box, box],
-      iconAnchor: [box / 2, box / 2], // centered on coordinate
-      popupAnchor: [0, -box / 2],
+      className: "daimyo-crest-marker",
+      html: `<div style="${frameStyle}">${imgHtml}</div>`,
+      iconSize: [sizePx, sizePx],
+      iconAnchor: [sizePx / 2, sizePx / 2],
+      popupAnchor: [0, -sizePx / 2],
     });
   }
 
   async function main() {
     try {
       ensurePopupApi();
+      hideError();
 
-      const map = L.map("map", { zoomControl: true }).setView([36.2, 138.25], 5);
+      const map = L.map("map", {
+        zoomControl: true,
+      }).setView([36.2, 138.25], 5);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -104,6 +97,9 @@
       const regionGroups = {};
       regions.forEach((r) => (regionGroups[r] = L.layerGroup()));
 
+      // We'll compute bounds safely (no FeatureGroup over LayerGroups)
+      const bounds = L.latLngBounds([]);
+
       // Build markers into groups
       features.forEach((f) => {
         const p = f.properties || {};
@@ -116,8 +112,7 @@
         const r = p.region;
         if (!r || !regionGroups[r]) return;
 
-        // ✅ Smaller icon for region filter map
-        const icon = crestDivIconSmall(p, REGION_ICON_SIZE);
+        const icon = makeRegionCrestDivIcon(p, REGION_ICON_SIZE);
         const marker = L.marker([lat, lon], { icon });
 
         marker.bindPopup(window.DaimyoPopup.buildPopupHtml(p), {
@@ -133,15 +128,14 @@
         });
 
         regionGroups[r].addLayer(marker);
+        bounds.extend([lat, lon]);
       });
 
       // Add all by default
       Object.values(regionGroups).forEach((lg) => lg.addTo(map));
 
-      // Fit bounds across all markers
-      const all = L.featureGroup(Object.values(regionGroups));
-      const b = all.getBounds();
-      if (b && b.isValid()) map.fitBounds(b.pad(0.05));
+      // Fit bounds across all markers (SAFE)
+      if (bounds.isValid()) map.fitBounds(bounds.pad(0.05));
 
       // Build UI
       const listEl = document.getElementById("region-list");
@@ -175,7 +169,9 @@
         cb.checked = true;
         cb.dataset.region = r;
 
-        cb.addEventListener("change", () => setRegionEnabled(r, cb.checked));
+        cb.addEventListener("change", () => {
+          setRegionEnabled(r, cb.checked);
+        });
 
         const span = document.createElement("span");
         span.textContent = r;
@@ -203,7 +199,7 @@
         });
       }
 
-      // console.log("Region map loaded", BUILD, "popup", window.DaimyoPopup.BUILD);
+      // console.log("Region map loaded", BUILD);
     } catch (err) {
       console.error("Failed to load daimyo data (see console).", err);
       showError("Failed to load daimyo data (see console).");
