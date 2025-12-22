@@ -1,172 +1,243 @@
 // js/popup.js
-(function () {
+// Popup + crest icon helpers for Daimyo Map
+// - Shows Stipend in Man-koku for normal hans
+// - Omits stipend for Shogunate Land / Territory-of entries
+// - Provides DaimyoPopup.crestDivIcon() used by app.js / app-region.js
+
+(() => {
   "use strict";
 
-  // bump this whenever you edit popup.js (easy cache check in DevTools)
   const BUILD = "20251222-1";
   const ICON_DIR = "imgs/";
 
-  // Inline SVG placeholder so missing crests still render nicely
+  // Simple inline placeholder (prevents broken image icons)
+  const PLACEHOLDER_SVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+      <rect width="100%" height="100%" fill="#f3f4f6"/>
+      <circle cx="40" cy="40" r="26" fill="#e5e7eb"/>
+      <path d="M26 40h28" stroke="#9ca3af" stroke-width="4" stroke-linecap="round"/>
+    </svg>
+  `.trim();
   const PLACEHOLDER =
-    "data:image/svg+xml;charset=UTF-8," +
-    encodeURIComponent(
-      `
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
-  <rect width="100%" height="100%" rx="10" ry="10" fill="#e5e7eb"/>
-  <text x="50%" y="56%" text-anchor="middle" font-size="28" fill="#6b7280" font-family="sans-serif">?</text>
-</svg>
-`.trim()
-    );
+    "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(PLACEHOLDER_SVG);
 
-  const s = (v) => String(v ?? "").trim();
+  const s = (v) => (v == null ? "" : String(v)).trim();
 
   const esc = (v) =>
-    String(v ?? "")
+    String(v == null ? "" : v)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
 
-  function pick(obj, keys) {
-    for (const k of keys) {
-      if (!obj) continue;
-      const v = obj[k];
-      if (v !== null && v !== undefined && s(v) !== "") return v;
-    }
-    return null;
-  }
-
   function iconUrl(iconName) {
-    const name = s(iconName);
-    if (!name) return PLACEHOLDER;
+    const raw = s(iconName);
+    if (!raw) return PLACEHOLDER;
 
-    // If it's already a full URL or a data URL, use as-is
-    if (/^https?:\/\//i.test(name) || name.startsWith("data:")) return name;
+    // already absolute / data url
+    if (/^(https?:|data:)/i.test(raw)) return raw;
 
-    // Otherwise treat as filename in imgs/
-    return ICON_DIR + name;
+    // if already includes imgs/ or a path, keep it (normalize leading "./")
+    if (raw.startsWith("./")) return raw.slice(2);
+    if (raw.startsWith("imgs/") || raw.includes("/")) return raw;
+
+    // otherwise assume it's a filename inside imgs/
+    return ICON_DIR + raw;
   }
 
-  function isGovtLand(notesRaw) {
-    const n = s(notesRaw).toLowerCase();
+  function isGovOrTerritory(notes) {
+    const n = s(notes).toLowerCase();
+    if (!n) return false;
     return n.startsWith("shogunate land") || n.startsWith("territory of");
   }
 
-  // Returns koku as a number (e.g., 120000), or null
-  function parseStipendKoku(raw) {
-    const t0 = s(raw);
-    if (!t0 || t0 === "-" || t0 === "—") return null;
+  // GeoJSON has: "stipend (Man Koku)" like "3 (Man-koku)"
+  function parseManKoku(raw) {
+    if (raw == null) return null;
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw;
 
-    // If already written like "12万石"
-    const manMatch = t0.match(/([\d.]+)\s*万/);
-    if (manMatch) {
-      const man = Number(manMatch[1]);
-      return Number.isFinite(man) ? man * 10000 : null;
-    }
+    const txt = s(raw);
+    if (!txt || txt === "-" || txt.toLowerCase() === "na") return null;
 
-    // Otherwise try to parse plain numeric koku (allow commas / extra text)
-    const cleaned = t0
-      .replace(/,/g, "")
-      .replace(/[^\d.\-]/g, ""); // keep digits/dot/minus only
-    const num = Number(cleaned);
+    // first number in the string (allows commas and decimals)
+    const m = txt.match(/[-+]?\d[\d,]*\.?\d*/);
+    if (!m) return null;
+
+    const num = Number(m[0].replace(/,/g, ""));
     return Number.isFinite(num) ? num : null;
   }
 
-  // Formats koku -> "12万石" (1 decimal max if needed)
-  function fmtManKoku(koku) {
-    if (!Number.isFinite(koku)) return null;
-    const man = koku / 10000;
-    const rounded = Math.round(man * 10) / 10; // 1 decimal
-    const text =
-      Number.isInteger(rounded) ? String(rounded) : String(rounded);
-    return `${text}万石`;
+  function formatManKoku(n) {
+    if (!Number.isFinite(n)) return null;
+
+    // integer vs decimal formatting
+    const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+    if (isInt) return new Intl.NumberFormat("en-US").format(Math.round(n));
+
+    // up to 2 decimals, trimmed
+    const fixed = n.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+    const [a, b] = fixed.split(".");
+    const aFmt = new Intl.NumberFormat("en-US").format(Number(a));
+    return b ? `${aFmt}.${b}` : aFmt;
   }
 
-  function html(p) {
-    // Field-name fallbacks (handles different GeoJSON property keys)
-    const name =
-      pick(p, ["name", "han", "han_name", "hanName", "Han Name"]) ||
-      pick(p, ["country", "Country"]) ||
-      "";
+  function crestImgTag(iconName, sizePx, extraStyle = "") {
+    const url = iconUrl(iconName);
+    const size = Number(sizePx) || 72;
+    const style = `width:${size}px;height:${size}px;object-fit:contain;${extraStyle}`;
 
-    const country = pick(p, ["country", "Country"]) || "";
-    const region = pick(p, ["region", "Region"]) || "";
-    const prefecture = pick(p, ["prefecture", "Current Prefecture"]) || "";
-    const daimyo =
-      pick(p, ["daimyo", "Daimyo Family Name", "daimyo_family"]) || "";
-    const notes = pick(p, ["notes", "Notes"]) || "";
-    const wiki =
-      pick(p, ["wikipedia_url", "Link to Wikipedia", "wiki", "wikipedia"]) || "";
-    const icon = pick(p, ["icon", "mon", "crest", "Mon (Crest)"]) || "";
+    // onerror swaps to placeholder so broken files don’t show as broken icons
+    return `<img src="${esc(url)}"
+      alt=""
+      style="${esc(style)}"
+      onerror="this.onerror=null;this.src='${esc(PLACEHOLDER)}';"
+    />`;
+  }
 
-    const govt = isGovtLand(notes);
+  // Used by app.js/app-region.js in pointToLayer()
+  function crestDivIcon(iconName, sizePx = 34) {
+    const size = Number(sizePx) || 34;
 
-    // Stipend key fallbacks — this is usually where “missing stipend” happens
-    const rawStipend = pick(p, [
-      "stipend",
-      "stipend_koku",
-      "stipendKoku",
-      "koku",
-      "Stipend (Koku)",
-    ]);
-    const koku = parseStipendKoku(rawStipend);
-    const stipendText = koku !== null ? fmtManKoku(koku) : null;
+    // If Leaflet isn't ready for some reason, let Leaflet fall back to default icon.
+    if (!window.L || typeof window.L.divIcon !== "function") return undefined;
 
-    const crestSrc = iconUrl(icon);
+    const url = iconUrl(iconName);
 
-    const hero = `
-      <div style="display:flex; justify-content:center; margin-bottom:6px;">
-        <img
-          src="${crestSrc}"
-          onerror="this.onerror=null;this.src='${PLACEHOLDER}'"
-          alt=""
-          style="width:84px;height:84px;border-radius:999px;object-fit:contain;"
+    const html = `
+      <div style="
+        width:${size}px;height:${size}px;
+        border-radius:6px;
+        background:#fff;
+        border:1px solid rgba(0,0,0,0.18);
+        box-shadow:0 1px 4px rgba(0,0,0,0.15);
+        display:flex;align-items:center;justify-content:center;
+        overflow:hidden;">
+        <img src="${esc(url)}" alt=""
+          style="width:${Math.max(18, Math.floor(size * 0.78))}px;
+                 height:${Math.max(18, Math.floor(size * 0.78))}px;
+                 object-fit:contain;"
+          onerror="this.onerror=null;this.src='${esc(PLACEHOLDER)}';"
         />
-      </div>`;
+      </div>
+    `.trim();
+
+    return window.L.divIcon({
+      className: "crest-div-icon",
+      html,
+      iconSize: [size, size],
+      iconAnchor: [Math.floor(size / 2), size], // anchor near bottom-center
+      popupAnchor: [0, -size]
+    });
+  }
+
+  function popupHtml(props) {
+    const p = props || {};
+
+    const name = s(p.name) || "—";
+    const alias = s(p.alias);
+    const country = s(p.country);
+    const region = s(p.region);
+    const prefecture = s(p.prefecture);
+    const daimyo = s(p.daimyo);
+    const notes = s(p.notes);
+    const wiki = s(p.wikipedia);
+    const icon = s(p.icon);
+
+    const gov = isGovOrTerritory(notes);
+
+    // stipend only for normal hans (not shogunate land / territories)
+    const stipendRaw =
+      p["stipend (Man Koku)"] ?? p["stipend (Man-koku)"] ?? p["stipend"] ?? null;
+    const stipendNum = gov ? null : parseManKoku(stipendRaw);
+    const stipendFmt = stipendNum == null ? null : formatManKoku(stipendNum);
 
     const lines = [];
-
-    lines.push(hero);
-    lines.push(`<div class="popup-title">${esc(name)}</div>`);
     if (country) lines.push(`<div class="popup-sub">${esc(country)}</div>`);
     if (region) lines.push(`<div class="popup-sub">${esc(region)}</div>`);
     if (prefecture) lines.push(`<div class="popup-sub">${esc(prefecture)}</div>`);
 
-    if (daimyo) lines.push(`<div class="popup-line"><b>Daimyo:</b> ${esc(daimyo)}</div>`);
+    // Main body lines
+    let body = "";
 
-    // Keep your current behavior:
-    // - Govt land / Territory: show notes italic, no stipend
-    // - Otherwise: show stipend in 万石 when available
-    if (govt) {
-      if (notes) lines.push(`<div class="popup-notes"><i>${esc(notes)}</i></div>`);
+    // Title + alias
+    body += `<div class="popup-title">${esc(name)}</div>`;
+    if (alias) body += `<div class="popup-sub"><i>${esc(alias)}</i></div>`;
+
+    // Location lines
+    body += lines.join("");
+
+    // Notes-only (Shogunate Land / Territory of ...)
+    if (gov && notes) {
+      body += `<div class="popup-notes"><i>${esc(notes)}</i></div>`;
     } else {
-      if (stipendText) {
-        lines.push(
-          `<div class="popup-line"><b>Stipend:</b> ${esc(stipendText)}</div>`
-        );
+      if (daimyo) {
+        body += `<div class="popup-line"><b>Daimyo:</b> ${esc(daimyo)}</div>`;
+      }
+      if (stipendFmt) {
+        body += `<div class="popup-line"><b>Stipend:</b> ${esc(
+          stipendFmt
+        )} Man-koku</div>`;
+      }
+      if (notes) {
+        body += `<div class="popup-notes"><i>${esc(notes)}</i></div>`;
       }
     }
 
+    // Wikipedia link (optional)
     if (wiki) {
-      lines.push(
-        `<div class="popup-line"><a href="${esc(wiki)}" target="_blank" rel="noopener">Wikipedia</a></div>`
-      );
+      body += `<div class="popup-line">
+        <a href="${esc(wiki)}" target="_blank" rel="noopener">Wikipedia</a>
+      </div>`;
     }
 
+    // Footer crest (small)
     const footer = `
-      <div class="popup-footer">
-        <img
-          class="popup-footer-crest"
-          src="${crestSrc}"
-          onerror="this.onerror=null;this.src='${PLACEHOLDER}'"
+      <div class="popup-footer" style="display:flex;justify-content:flex-end;">
+        <img class="popup-footer-crest"
+          src="${esc(iconUrl(icon))}"
           alt=""
+          onerror="this.onerror=null;this.src='${esc(PLACEHOLDER)}';"
         />
-      </div>`;
+      </div>
+    `.trim();
 
-    return `<div class="popup-card">${lines.join("")}${footer}</div>`;
+    // Big crest at top (matches your current card style)
+    const crestTop = `
+      <div style="display:flex;justify-content:center;margin-bottom:8px;">
+        ${crestImgTag(
+      icon,
+      76,
+      "border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,0.12);padding:6px;"
+    )}
+      </div>
+    `.trim();
+
+    return `
+      <div class="popup-card">
+        ${crestTop}
+        <div class="t">
+          ${body}
+        </div>
+        ${footer}
+      </div>
+    `.trim();
   }
 
-  // expose globally
-  window.DaimyoPopup = { BUILD, html, render: html };
+  // Expose API (and keep backwards-friendly aliases)
+  window.DaimyoPopup = {
+    BUILD,
+    ICON_DIR,
+    PLACEHOLDER,
+    iconUrl,
+    isGovOrTerritory,
+    parseManKoku,
+    crestDivIcon,
+    popupHtml,
+    buildHtml: popupHtml,
+    html: popupHtml
+  };
+
+  // Helpful sanity check in console:
+  // window.DaimyoPopup.BUILD
 })();

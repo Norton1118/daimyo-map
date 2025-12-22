@@ -1,5 +1,6 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -10,25 +11,87 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 
   <style>
-    html, body { height:100%; margin:0; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    header {
-      height: 52px; display:flex; align-items:center; justify-content:space-between;
-      padding: 0 14px; border-bottom: 1px solid #e5e7eb; background:#fff;
+    html,
+    body {
+      height: 100%;
+      margin: 0;
     }
-    #map { height: calc(100vh - 52px); width: 100%; }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+
+    header {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #fff;
+    }
+
+    #map {
+      height: calc(100vh - 52px);
+      width: 100%;
+    }
 
     /* popup styles */
-    .crest-div-icon { background: transparent; border: none; }
-    .daimyo-popup { line-height: 1.25; max-width: 280px; }
-    .popup-crest-wrap { display:flex; justify-content:center; margin-bottom:6px; }
-    .popup-crest { width:60px; height:60px; object-fit:contain; }
-    .popup-title { font-weight:700; margin: 0 0 6px; }
-    .popup-sub { color:#555; font-size:12px; margin:2px 0; }
-    .popup-line { margin-top:6px; }
-    .popup-notes { margin-top:8px; }
-    .popup-footer { margin-top:10px; padding-top:8px; border-top:1px solid #e5e7eb; display:flex; justify-content:flex-end; }
-    .popup-footer-crest { width:26px; height:26px; object-fit:contain; opacity:0.95; }
+    .crest-div-icon {
+      background: transparent;
+      border: none;
+    }
+
+    .daimyo-popup {
+      line-height: 1.25;
+      max-width: 280px;
+    }
+
+    .popup-crest-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 6px;
+    }
+
+    .popup-crest {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+    }
+
+    .popup-title {
+      font-weight: 700;
+      margin: 0 0 6px;
+    }
+
+    .popup-sub {
+      color: #555;
+      font-size: 12px;
+      margin: 2px 0;
+    }
+
+    .popup-line {
+      margin-top: 6px;
+    }
+
+    .popup-notes {
+      margin-top: 8px;
+    }
+
+    .popup-footer {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .popup-footer-crest {
+      width: 26px;
+      height: 26px;
+      object-fit: contain;
+      opacity: 0.95;
+    }
   </style>
 </head>
 
@@ -44,8 +107,10 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
   <!-- MUST be before app.js -->
-  <script src="./js/popup.js?v=20251219-4"></script>
-  <script src="./js/app.js?v=20251219-4"></script>
+  <script src="./js/popup.js?v=20251222-1"></script>
+  <script src="./js/app.js?v=20251222-1"></script>
+
 
 </body>
+
 </html>
